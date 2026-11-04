@@ -9,7 +9,7 @@ async function estadoPush(){
     el.textContent="Este navegador no admite avisos. En iPhone: Compartir → Añadir a pantalla de inicio, y abre Cuadre desde ahí.";
     btn.hidden=true; return; }
   const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription();
-  if(sub&&Notification.permission==="granted"){el.textContent="✅ Avisos activados en este dispositivo";btn.hidden=true;probar.hidden=false;}
+  if(sub&&Notification.permission==="granted"){el.textContent="Avisos activados en este dispositivo";btn.hidden=true;probar.hidden=false;}
   else if(Notification.permission==="denied"){el.textContent="Bloqueaste los avisos. Actívalos en los ajustes del navegador para este sitio.";btn.hidden=true;}
   else {el.textContent="Avisos desactivados en este dispositivo";btn.hidden=false;probar.hidden=true;}
 }

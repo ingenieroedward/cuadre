@@ -1,11 +1,34 @@
 {% extends "base.html" %}{% block t %}Crear administrador · Cuadre{% endblock %}{% block c %}
-<style>body{background:radial-gradient(1000px 600px at 20% -10%,#b45cff55,transparent),radial-gradient(900px 600px at 110% 10%,#6a05b355,transparent),var(--bg);min-height:100vh}
-.auth{max-width:420px;margin:6vh auto 0}.auth .logo{justify-content:center;font-size:34px;margin:0 0 6px}.auth .logo i{width:56px;height:56px;border-radius:18px;font-size:32px}
-.auth p.s{text-align:center;color:var(--mut);margin:0 0 22px}.auth .card{padding:24px;box-shadow:0 20px 50px rgba(80,10,150,.18)}
-.auth form{display:grid;gap:14px}.auth button{width:100%;padding:13px;font-size:16px}</style>
-<div class="auth"><div class="logo"><i>C</i>Cuadre</div><p class="s">Bienvenido. Crea la cuenta del administrador de la familia.</p>
-<div class="card"><form method="post"><label>Tu nombre<input name="nombre" autofocus required></label>
-<label>Usuario<input name="username" autocapitalize="none" autocomplete="username" required></label>
-<label>Clave (mínimo 8 caracteres)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
-<label>Repite la clave<input name="password2" type="password" minlength="8" autocomplete="new-password" required></label>
-<button>Crear y entrar</button></form></div></div>{% endblock %}
+<style>.login{min-height:100vh;display:grid;grid-template-columns:1.05fr 1fr}
+.brand{position:relative;overflow:hidden;color:#fff;padding:56px 56px 48px;display:flex;flex-direction:column;justify-content:space-between;
+ background:radial-gradient(900px 500px at 15% 0%,#c066ff 0,transparent 60%),radial-gradient(700px 500px at 100% 100%,#4a0494 0,transparent 60%),linear-gradient(160deg,#7a08c8,#4b0792)}
+.brand:before,.brand:after{content:"";position:absolute;border-radius:50%;background:#fff;opacity:.07}
+.brand:before{width:420px;height:420px;right:-140px;top:-120px}.brand:after{width:260px;height:260px;left:-80px;bottom:-60px}
+.brand .lg{display:flex;align-items:center;gap:12px;font-weight:800;font-size:26px;letter-spacing:-.5px;position:relative}
+.brand .lg i{width:46px;height:46px;border-radius:15px;background:#fff;color:#7a1fd6;display:grid;place-items:center;font-style:normal;font-size:26px}
+.brand h2{font-size:42px;line-height:1.08;letter-spacing:-1.5px;margin:0 0 22px;color:#fff;position:relative}
+.brand ul{list-style:none;padding:0;margin:0;display:grid;gap:14px;position:relative}
+.brand li{display:flex;gap:12px;align-items:center;font-size:16px}.brand li b{width:38px;height:38px;border-radius:12px;background:#ffffff26;display:grid;place-items:center}
+.brand small{opacity:.7;position:relative}
+.form{display:flex;align-items:center;justify-content:center;padding:32px 24px}
+.box{width:100%;max-width:380px}.box h1{font-size:30px;margin:0 0 6px;letter-spacing:-.8px}.box p.s{color:var(--mu);margin:0 0 24px}
+.pkbtn{width:100%;justify-content:center;padding:15px;font-size:16px;border-radius:14px;background:linear-gradient(135deg,#7a1fd6,#a24df0);box-shadow:0 10px 26px rgba(122,31,214,.35)}
+.or{display:flex;align-items:center;gap:12px;color:var(--mu);font-size:13px;margin:22px 0}.or:before,.or:after{content:"";flex:1;height:1px;background:var(--ln)}
+.box form{display:grid;gap:14px}.box input{width:100%;padding:13px 14px;font-size:16px}
+.box .go{width:100%;justify-content:center;padding:13px;font-size:16px;background:var(--soft);color:var(--ac)}
+.pw{position:relative;display:block}.pw input{padding-right:50px}.pw a{position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;padding:8px;color:var(--mu);display:flex}
+#pk-msg{color:var(--bad);font-weight:600;margin:10px 0 0;text-align:center;min-height:20px}
+.err{display:flex;gap:8px;align-items:center;background:var(--badb);color:var(--bad);padding:11px 13px;border-radius:12px;margin-bottom:16px;font-weight:600}
+@media(max-width:860px){.login{grid-template-columns:1fr}.brand{padding:30px 24px 26px}.brand h2{font-size:27px;margin-bottom:0}.brand ul,.brand small{display:none}.brand .lg{margin-bottom:16px}.form{padding:26px 20px 40px;align-items:flex-start}}
+</style>
+<div class="login">
+<section class="brand"><div class="lg"><i>C</i>Cuadre</div>
+<div><h2>Las cuentas de la familia, claras.</h2><ul><li><b>{{ico('shield',20)}}</b>Tus datos viven en tu servidor</li><li><b>{{ico('users',20)}}</b>Agrega a tu familia después</li><li><b>{{ico('finger',20)}}</b>Entra con huella o Face ID</li></ul></div>
+<small>Primer uso: crea la cuenta del administrador.</small></section>
+<section class="form"><div class="box"><h1>Bienvenido</h1><p class="s">Crea la cuenta del administrador de la familia.</p>
+{% if err %}<div class="err">{{ico('alert',18)}}{{err}}</div>{% endif %}
+<form method="post"><label class="f">Tu nombre<input name="nombre" autofocus required></label>
+<label class="f">Usuario<input name="username" autocapitalize="none" autocomplete="username" required></label>
+<label class="f">Clave (mínimo 8 caracteres)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+<label class="f">Repite la clave<input name="password2" type="password" minlength="8" autocomplete="new-password" required></label>
+<button class="btn lg" style="justify-content:center">Crear y entrar</button></form></div></section></div>{% endblock %}

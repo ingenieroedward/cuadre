@@ -1,8 +1,8 @@
 {% extends "base.html" %}{% block t %}Familia · Cuadre{% endblock %}{% block c %}
-<h1>Familia</h1>
-<div class="card wrap"><table><tr><th>Nombre</th><th>Usuario</th><th>Rol</th>{% if u.admin %}<th>Restablecer clave</th>{% endif %}</tr>
-{% for x in users %}<tr><td><b>{{x.nombre}}</b></td><td class="mut">{{x.username}}</td><td><span class="chip">{{'Administrador' if x.admin else 'Miembro'}}</span></td>
-{% if u.admin %}<td><form class="row" method="post" action="/miembros/{{x.id}}/clave" style="flex-wrap:nowrap"><input name="password" type="password" minlength="8" placeholder="Nueva clave" required style="width:150px"><button class="s">Cambiar</button></form></td>{% endif %}</tr>{% endfor %}</table></div>
-{% if u.admin %}<div class="card"><h2>Agregar miembro</h2><form class="row" method="post">
-<label>Nombre<input name="nombre" required></label><label>Usuario<input name="username" autocapitalize="none" required></label>
-<label>Clave (mín. 8)<input name="password" type="password" minlength="8" required></label><button>Agregar</button></form></div>{% endif %}{% endblock %}
+<div class="ph"><div><h1>Familia</h1><p>{{users|length}} {{'persona' if users|length==1 else 'personas'}} con acceso</p></div></div>
+<div class="stack"><div class="card flush">{% for x in users %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small>{{x.username}}</small></div>
+<span class="pill {{'' if x.admin else 'warn'}}">{{'Administrador' if x.admin else 'Miembro'}}</span>
+{% if u.admin %}<form method="post" action="/miembros/{{x.id}}/clave" style="display:flex;gap:6px"><input name="password" type="password" minlength="8" placeholder="Nueva clave" required style="width:140px;padding:7px 10px"><button class="soft" title="Restablecer clave">{{ico('lock',16)}}</button></form>{% endif %}</div>{% endfor %}</div>
+{% if u.admin %}<div class="card"><div class="hd"><h2>{{ico('plus',19)}}Agregar a la familia</h2></div><form class="frm row" method="post">
+<label class="f">Nombre<input name="nombre" required></label><label class="f">Usuario<input name="username" autocapitalize="none" required></label>
+<label class="f">Clave (mínimo 8)<input name="password" type="password" minlength="8" required></label><button>Agregar</button></form></div>{% endif %}</div>{% endblock %}

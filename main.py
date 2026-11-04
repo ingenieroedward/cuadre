@@ -23,6 +23,7 @@ from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, PublicKeyC
                                       ResidentKeyRequirement, UserVerificationRequirement)
 
 import avisos
+import icons
 import lector
 
 BASE = Path(__file__).parent
@@ -66,11 +67,27 @@ app.add_middleware(SessionMiddleware, secret_key=_secreto(), same_site="lax",
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 tpl = Jinja2Templates(directory=str(BASE / "templates"))
 tpl.env.filters["cop"] = avisos.cop
-EMOJI = {"Comida": "🍔", "Supermercado": "🛒", "Transporte": "🚌", "Suscripciones": "📺", "Salud": "💊",
-         "Servicios": "💡", "Hogar": "🏠", "Educación": "🎓", "Compras en línea": "📦", "Intereses y cobros": "💸",
-         "Ingresos": "💰", "Transferencias recibidas": "⬇️", "Transferencias enviadas": "⬆️", "Traslado propio": "🔁",
-         "Pago de tarjeta": "💳", "Reversado": "↩️", "Devoluciones": "↩️", "Arriendo": "🔑", "Ocio": "🎉", "Otros": "🧩"}
-tpl.env.filters["emo"] = lambda c: EMOJI.get(c, "🧩")
+tpl.env.filters["ico"] = icons.cat
+tpl.env.filters["color"] = icons.color
+tpl.env.filters["inicial"] = lambda t: (t or "?").strip()[:1].upper()
+MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+DIA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+def mes_txt(mes):
+    a, m_ = mes.split("-")
+    return f"{MES_ES[int(m_) - 1].capitalize()} {a}"
+
+
+def mover_mes(mes, d):
+    a, m_ = int(mes[:4]), int(mes[5:7]) - 1 + d
+    return f"{a + m_ // 12:04d}-{m_ % 12 + 1:02d}"
+
+
+def fecha_larga(iso):
+    d = date.fromisoformat(iso)
+    return f"{DIA_ES[d.weekday()]} {d.day} {MES_ES[d.month - 1][:3]}"
+tpl.env.globals["ico"] = icons.svg
 CATEGORIAS = list(lector.CATEGORIAS_BASE) + ["Transferencias recibidas", "Transferencias enviadas", "Traslado propio",
                                               "Pago de tarjeta", "Reversado", "Devoluciones", "Arriendo", "Ocio", "Otros"]
 EXC = avisos.EXC
@@ -292,7 +309,7 @@ def dashboard(request: Request, mes: str = ""):
         COALESCE(SUM(CASE WHEN m.monto<0 THEN -m.monto END),0) gas FROM movs m JOIN users u ON u.id=m.user_id
         WHERE substr(m.fecha,1,7)=? AND m.{EXC} GROUP BY u.id""", (mes,)).fetchall()
     hist = c.execute(f"""SELECT substr(fecha,1,7) mes, COALESCE(SUM(CASE WHEN monto>0 THEN monto END),0) ing,
-        COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas FROM movs WHERE {EXC} GROUP BY 1 ORDER BY 1 DESC LIMIT 12""").fetchall()
+        COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas FROM movs WHERE {EXC} GROUP BY 1 ORDER BY 1 DESC LIMIT 6""").fetchall()
     gasto = {x["categoria"]: x["v"] for x in cats}
     pres = [{"categoria": p["categoria"], "limite": p["limite"], "gasto": gasto.get(p["categoria"], 0)}
             for p in c.execute("SELECT categoria, limite FROM presupuestos ORDER BY categoria")]
@@ -302,7 +319,8 @@ def dashboard(request: Request, mes: str = ""):
     c.close()
     pagos = [dict(p, dias=(date.fromisoformat(p["fecha_limite"]) - date.today()).days) for p in pagos]
     return render(request, "dashboard.html", u=u, mes=mes, tot=tot, cats=[dict(x) for x in cats],
-                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0))
+                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0),
+                  mes_txt=mes_txt(mes), prev=mover_mes(mes, -1), next=mover_mes(mes, 1), mes_txt_f=mes_txt)
 
 
 # ---------- Movimientos ----------
@@ -328,7 +346,14 @@ def movimientos(request: Request, mes: str = "", persona: int = 0, cat: str = ""
         WHERE {w} ORDER BY m.fecha DESC, m.id DESC LIMIT 1000""", p).fetchall()
     users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
     c.close()
-    return render(request, "movimientos.html", u=u, rows=rows, users=users, cats=CATEGORIAS,
+    grupos = []
+    for r in rows:
+        if not grupos or grupos[-1]["fecha"] != r["fecha"]:
+            grupos.append({"fecha": r["fecha"], "txt": fecha_larga(r["fecha"]), "total": 0, "rows": []})
+        if r["categoria"] not in lector.EXCLUIDAS:
+            grupos[-1]["total"] += r["monto"]
+        grupos[-1]["rows"].append(r)
+    return render(request, "movimientos.html", u=u, rows=rows, grupos=grupos, users=users, cats=CATEGORIAS,
                   f={"mes": mes, "persona": persona, "cat": cat, "q": q}, hoy=date.today().isoformat())
 
 
@@ -515,7 +540,7 @@ async def push_suscribir(request: Request):
 @app.post("/push/probar")
 async def push_probar(request: Request):
     u = user(request)
-    n = await asyncio.to_thread(avisos.enviar, db, PEM, [u["id"]], "✅ Cuadre funciona",
+    n = await asyncio.to_thread(avisos.enviar, db, PEM, [u["id"]], "Cuadre funciona",
                                 "Así te llegarán los avisos de pagos y presupuestos.")
     return {"enviados": n}
 

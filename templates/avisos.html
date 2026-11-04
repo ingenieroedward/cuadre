@@ -1,27 +1,28 @@
 {% extends "base.html" %}{% block t %}Avisos · Cuadre{% endblock %}{% block c %}
-<h1>Avisos y recordatorios</h1>
-<div class="card"><h2>🔔 Notificaciones en este dispositivo</h2><p id="push-estado" class="mut">Comprobando…</p>
-<button id="push-btn" onclick="activarPush()" hidden>Activar avisos</button> <button id="push-probar" class="s" onclick="probarPush()" hidden>Enviar prueba</button>
-<p class="mut" style="margin:12px 0 0;font-size:13px">En iPhone: abre Cuadre en Safari → Compartir → <b>Añadir a pantalla de inicio</b>, ábrelo desde ahí y actívalos. En Android funciona desde Chrome (y también puedes instalarla). Cada persona activa los suyos en su celular.</p></div>
+<div class="ph"><div><h1>Avisos</h1><p>Que nada se te pase: pagos, extractos y presupuestos</p></div></div>
+<div class="stack">
+<div class="card alert p"><div class="ic">{{ico('bell',22)}}</div><div class="t"><b>Notificaciones en este dispositivo</b><div class="sub" id="push-estado">Comprobando…</div>
+<div class="sub" style="margin-top:6px">iPhone: abre Cuadre en Safari, toca Compartir y luego Añadir a pantalla de inicio. Ábrelo desde ahí y actívalos. Cada persona los activa en su celular.</div></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="push-btn" onclick="activarPush()" hidden>Activar avisos</button><button id="push-probar" class="soft" onclick="probarPush()" hidden>Enviar prueba</button></div></div>
 <div class="g2">
-<div class="card"><h2>💳 Pagos de tarjeta</h2><p class="mut" style="margin-top:-6px">Se detectan solos al subir el extracto de la tarjeta. Aviso 3 días antes, 1 día antes y el día del límite.</p>
-<table>{% for p in pagos %}<tr><td><b>{{p.banco}}</b> · {{p.nombre}}<div class="mut" style="font-size:13px">Límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}}/{{p.fecha_limite[:4]}} · mínimo {{(p.pago_minimo or 0)|cop}}</div></td>
-<td class="n"><form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="{{'s' if not p.pagado else 'g'}}">{{'Ya pagué' if not p.pagado else '✓ Pagado'}}</button></form></td></tr>
-{% else %}<tr><td class="mut">Aún no has subido un extracto de tarjeta.</td></tr>{% endfor %}</table></div>
-<div class="card"><h2>📄 Extractos del mes</h2><p class="mut" style="margin-top:-6px">Te recordamos subir los extractos si todavía no lo has hecho.</p>
-<form class="row" method="post" action="/avisos/config"><label>Día del mes<input name="dia_extracto" type="number" min="1" max="28" value="{{dia_ext}}" style="width:90px"></label>
-<label>Hora del aviso (0-23)<input name="hora_aviso" type="number" min="0" max="23" value="{{hora}}" style="width:90px"></label><button>Guardar</button></form></div></div>
-<div class="g2" style="margin-top:16px">
-<div class="card"><h2>🗓 Recordatorios de la familia</h2>
-<table>{% for r in recs %}<tr><td><b>{{r.titulo}}</b><div class="mut" style="font-size:13px">Día {{r.dia}} de cada mes{% if r.antes %} · avisa {{r.antes}} día(s) antes{% endif %} · {{r.nombre or 'toda la familia'}}</div></td>
-<td class="n"><form method="post" action="/avisos/recordatorio/{{r.id}}/borrar" onsubmit="return confirm('¿Borrar?')"><button class="g">✕</button></form></td></tr>
-{% else %}<tr><td class="mut">Sin recordatorios. Agrega el arriendo, los servicios…</td></tr>{% endfor %}</table>
-<form class="row" method="post" action="/avisos/recordatorio" style="margin-top:14px"><label>Qué<input name="titulo" placeholder="Pagar arriendo" required></label>
-<label>Día<input name="dia" type="number" min="1" max="31" required style="width:70px"></label><label>Avisar antes<input name="antes" type="number" min="0" max="15" value="1" style="width:80px"></label>
-<label>Para<select name="para"><option value="0">Toda la familia</option>{% for x in users %}<option value="{{x.id}}">{{x.nombre}}</option>{% endfor %}</select></label><button>Crear</button></form></div>
-<div class="card"><h2>🎯 Presupuestos por categoría</h2><p class="mut" style="margin-top:-6px">Te avisamos al llegar al 80% y al pasarte del límite mensual.</p>
-<table>{% for p in pres %}<tr><td><b>{{p.categoria|emo}} {{p.categoria}}</b></td><td class="n">{{p.limite|cop}}</td>
-<td class="n"><form method="post" action="/avisos/presupuesto/{{p.id}}/borrar"><button class="g">✕</button></form></td></tr>
-{% else %}<tr><td class="mut">Sin presupuestos todavía.</td></tr>{% endfor %}</table>
-<form class="row" method="post" action="/avisos/presupuesto" style="margin-top:14px"><label>Categoría<select name="categoria">{% for c in cats %}<option>{{c}}</option>{% endfor %}</select></label>
-<label>Límite mensual<input name="limite" type="number" min="1" step="any" required style="width:140px"></label><button>Guardar</button></form></div></div>{% endblock %}
+<div class="card"><div class="hd"><h2>{{ico('card',19)}}Pagos de tarjeta</h2></div><p class="sub" style="margin:-6px 0 8px">Se leen solos del extracto. Avisamos 3 días antes, 1 día antes y el día del límite.</p>
+{% for p in pagos %}<div class="li"><span class="chip s" style="--c:{{'#868e96' if p.pagado else '#c98200'}}">{{ico('card',17)}}</span><div class="t"><b>{{p.banco}} · {{p.nombre}}</b><small>Límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}}/{{p.fecha_limite[:4]}} · mínimo {{(p.pago_minimo or 0)|cop}}</small></div>
+<form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="{{'ghost' if p.pagado else 'soft'}}">{% if p.pagado %}{{ico('check',16)}}Pagado{% else %}Ya pagué{% endif %}</button></form></div>
+{% else %}<div class="empty">{{ico('card',28)}}<div>Sube un extracto de tarjeta y aparecerá aquí</div></div>{% endfor %}</div>
+<div class="card"><div class="hd"><h2>{{ico('file',19)}}Extractos del mes</h2></div><p class="sub" style="margin:-6px 0 14px">Te recordamos subirlos si todavía no lo has hecho.</p>
+<form class="frm row" method="post" action="/avisos/config"><label class="f">Día del mes<input name="dia_extracto" type="number" min="1" max="28" value="{{dia_ext}}"></label>
+<label class="f">Hora (0 a 23)<input name="hora_aviso" type="number" min="0" max="23" value="{{hora}}"></label><button>Guardar</button></form></div></div>
+<div class="g2">
+<div class="card"><div class="hd"><h2>{{ico('calendar',19)}}Recordatorios de la familia</h2></div>
+{% for r in recs %}<div class="li"><span class="chip s">{{ico('bell',17)}}</span><div class="t"><b>{{r.titulo}}</b><small>Día {{r.dia}} de cada mes{% if r.antes %} · {{r.antes}} día(s) antes{% endif %} · {{r.nombre or 'toda la familia'}}</small></div>
+<form method="post" action="/avisos/recordatorio/{{r.id}}/borrar" onsubmit="return confirm('¿Borrar?')"><button class="ghost del">{{ico('trash',17)}}</button></form></div>
+{% else %}<div class="empty">{{ico('calendar',28)}}<div>Agrega el arriendo, los servicios…</div></div>{% endfor %}
+<form class="frm" method="post" action="/avisos/recordatorio" style="margin-top:14px;padding-top:16px;border-top:1px solid var(--ln)"><label class="f">Qué quieres recordar<input name="titulo" placeholder="Pagar arriendo" required></label>
+<div class="frm row"><label class="f">Día del mes<input name="dia" type="number" min="1" max="31" required></label><label class="f">Avisar antes (días)<input name="antes" type="number" min="0" max="15" value="1"></label>
+<label class="f">Para<select name="para"><option value="0">Toda la familia</option>{% for x in users %}<option value="{{x.id}}">{{x.nombre}}</option>{% endfor %}</select></label></div><button>{{ico('plus',17)}}Crear recordatorio</button></form></div>
+<div class="card"><div class="hd"><h2>{{ico('target',19)}}Presupuestos</h2></div><p class="sub" style="margin:-6px 0 8px">Te avisamos al llegar al 80 % y al pasarte del límite mensual.</p>
+{% for p in pres %}<div class="li">{{p.categoria|ico(17,'s')}}<div class="t"><b>{{p.categoria}}</b><small>Límite mensual</small></div><div class="n b">{{p.limite|cop}}</div>
+<form method="post" action="/avisos/presupuesto/{{p.id}}/borrar"><button class="ghost del">{{ico('trash',17)}}</button></form></div>
+{% else %}<div class="empty">{{ico('target',28)}}<div>Aún no tienes presupuestos</div></div>{% endfor %}
+<form class="frm row" method="post" action="/avisos/presupuesto" style="margin-top:14px;padding-top:16px;border-top:1px solid var(--ln)"><label class="f">Categoría<select name="categoria">{% for c in cats %}<option>{{c}}</option>{% endfor %}</select></label>
+<label class="f">Límite mensual<input name="limite" type="number" min="1" step="any" required></label><button>{{ico('plus',17)}}Guardar</button></form></div></div></div>{% endblock %}

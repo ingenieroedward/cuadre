@@ -1,12 +1,24 @@
 {% extends "base.html" %}{% block t %}Subir extractos · Cuadre{% endblock %}{% block c %}
-<h1>Subir extractos</h1>
-<div class="card"><form class="row" method="post" enctype="multipart/form-data">
-<label>Archivos PDF<input type="file" name="archivos" accept=".pdf" multiple required></label>
-<label>De quién<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
-<label>Banco<select name="banco">{% for b in bancos %}<option>{{b}}</option>{% endfor %}</select></label>
-<label>Tipo (se detecta solo)<select name="tipo"><option value="cuenta">Cuenta de ahorros</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
-<label>Clave del PDF (cédula)<input name="clave" type="password" autocomplete="off"></label><button>Subir</button></form>
-<p class="mut" style="margin:14px 0 0">🔒 La clave solo abre el PDF y no se guarda. Tampoco se guarda el PDF, solo los movimientos. Subir el mismo extracto dos veces no duplica nada.</p></div>
-{% if resultado %}<div class="card wrap"><h2>Resultado</h2><table><tr><th>Archivo</th><th>Estado</th><th class="n">Leídos</th><th class="n">Nuevos</th></tr>
-{% for f,e,l,n,a in resultado %}<tr><td>{{f}}</td><td>{{e}}{% if a %}<br><span class="warn">💳 {{a}}</span>{% endif %}</td><td class="n">{{l}}</td><td class="n">{{n}}</td></tr>{% endfor %}</table>
-<p style="margin:14px 0 0"><a class="btn" href="/movimientos">Revisar movimientos →</a></p></div>{% endif %}{% endblock %}
+<div class="ph"><div><h1>Subir extractos</h1><p>Cuenta y tarjeta, de cualquier banco</p></div></div>
+<div class="stack">
+<form class="card" method="post" enctype="multipart/form-data"><label class="drop" id="drop">{{ico('upload',34)}}<b>Elige tus extractos en PDF</b><span class="sub" id="nom">o arrástralos aquí</span>
+<input type="file" name="archivos" accept=".pdf" multiple required onchange="nom.textContent=this.files.length+(this.files.length==1?' archivo seleccionado: '+this.files[0].name:' archivos seleccionados')"></label>
+<div class="frm row" style="margin-top:16px">
+<label class="f">De quién<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
+<label class="f">Banco<select name="banco">{% for b in bancos %}<option>{{b}}</option>{% endfor %}</select></label>
+<label class="f">Tipo (se detecta solo)<select name="tipo"><option value="cuenta">Cuenta de ahorros</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
+<label class="f">Clave del PDF (tu cédula)<input name="clave" type="password" autocomplete="off" placeholder="Solo para abrirlo"></label></div>
+<div style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><button class="btn lg">{{ico('upload',18)}}Subir y leer</button>
+<span class="sub" style="display:flex;gap:7px;align-items:center">{{ico('lock',16)}}La clave no se guarda. Tampoco el PDF, solo los movimientos.</span></div></form>
+{% if resultado %}<div class="card flush"><div class="hd" style="padding:18px 20px 0"><h2>{{ico('check',19)}}Resultado</h2></div>
+{% for f,e,l,n,a in resultado %}<div class="li"><span class="chip s" style="--c:{{'#0d9b6a' if e=='OK' else '#dc3a52'}}">{{ico('file' if e=='OK' else 'alert',17)}}</span>
+<div class="t"><b>{{f}}</b><small>{{e}}{% if a %}<br><span class="warn">{{a}}</span>{% endif %}</small></div>
+<div class="n"><span class="pill">{{l}} leídos</span> <span class="pill ok">{{n}} nuevos</span></div></div>{% endfor %}
+<div style="padding:14px 20px"><a class="btn" href="/movimientos">Revisar movimientos</a></div></div>{% endif %}
+<div class="card"><div class="hd"><h2>{{ico('info',19)}}Cómo hacerlo</h2></div><div class="steps">
+<div class="step"><b class="k">1</b><div><b>Descarga el PDF</b><div class="sub">Desde el correo de tu banco. Los de Nu llegan los primeros días del mes.</div></div></div>
+<div class="step"><b class="k">2</b><div><b>Súbelo aquí</b><div class="sub">Con tu cédula como clave si el PDF la pide. Puedes subir varios.</div></div></div>
+<div class="step"><b class="k">3</b><div><b>Revisa</b><div class="sub">Corrige categorías si hace falta. Subir dos veces el mismo extracto no duplica nada.</div></div></div></div></div></div>
+<script>const d=document.getElementById("drop");["dragenter","dragover"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.add("on")}));
+["dragleave","drop"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.remove("on")}));
+d.addEventListener("drop",x=>{const i=d.querySelector("input");i.files=x.dataTransfer.files;i.dispatchEvent(new Event("change"))});</script>{% endblock %}

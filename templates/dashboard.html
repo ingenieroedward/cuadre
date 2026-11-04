@@ -1,33 +1,30 @@
 {% extends "base.html" %}{% block t %}Resumen · Cuadre{% endblock %}{% block c %}
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin:0">Resumen</h1>
-<form><input type="month" name="mes" value="{{mes}}" onchange="this.form.submit()"></form></div><div style="height:14px"></div>
-{% if sin_passkey %}<div class="card alerta" style="border-left-color:var(--pri)"><div class="e">🔐</div><div style="flex:1"><b>Entra más rápido</b><div class="mut">Crea una passkey y usa tu huella o Face ID en vez de la clave.</div></div><a class="btn s" style="background:var(--soft);color:var(--pri)" href="/cuenta">Crear passkey</a></div>{% endif %}
-{% for p in pagos %}{% if p.dias <= 7 %}
-<div class="card alerta {{'x' if p.dias<=1}}"><div class="e">💳</div><div style="flex:1"><b>Tarjeta {{p.banco}} {{'vence HOY' if p.dias==0 else 'venció hace %d día(s)'|format(-p.dias) if p.dias<0 else 'vence en %d día(s)'|format(p.dias)}}</b>
-<div class="mut">Pago mínimo {{p.pago_minimo|cop}}{% if p.a_pagar %} · sin intereses {{p.a_pagar|cop}}{% endif %} · límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}} · {{p.nombre}}</div></div>
-<form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="s">Ya pagué</button></form></div>{% endif %}{% endfor %}
-<div class="grid" style="margin-bottom:16px">
-<div class="card hero kpi"><div class="l">💰 Ingresos</div><div class="v">{{tot.ing|cop}}</div></div>
-<div class="card kpi"><div class="l">🛍 Gastos</div><div class="v bad">{{tot.gas|cop}}</div></div>
-<div class="card kpi"><div class="l">⚖️ Balance</div><div class="v {{'ok' if tot.ing>=tot.gas else 'bad'}}">{{(tot.ing-tot.gas)|cop}}</div></div></div>
-{% if pres %}<div class="card"><h2>Presupuestos del mes</h2>
+<div class="ph"><div><h1>Resumen</h1><p>Cómo va el mes de la familia</p></div>
+<div class="seg"><a href="/?mes={{prev}}" title="Mes anterior">{{ico('chevl')}}</a><span>{{mes_txt}}</span><a href="/?mes={{next}}" title="Mes siguiente">{{ico('chevr')}}</a></div></div>
+<div class="stack">
+{% if sin_passkey %}<div class="card alert p"><div class="ic">{{ico('finger',22)}}</div><div class="t"><b>Entra más rápido</b><div class="sub">Crea una passkey y usa tu huella o Face ID en vez de la clave.</div></div><a class="btn soft" href="/cuenta">Crear passkey</a></div>{% endif %}
+{% for p in pagos %}{% if p.dias <= 7 %}<div class="card alert {{'x' if p.dias<=1}}"><div class="ic">{{ico('card',22)}}</div>
+<div class="t"><b>Tarjeta {{p.banco}} {{'vence hoy' if p.dias==0 else 'venció hace %d día(s)'|format(-p.dias) if p.dias<0 else 'vence en %d día(s)'|format(p.dias)}}</b>
+<div class="sub">Pago mínimo {{p.pago_minimo|cop}}{% if p.a_pagar %} · sin intereses {{p.a_pagar|cop}}{% endif %} · límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}} · {{p.nombre}}</div></div>
+<form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="soft">Ya pagué</button></form></div>{% endif %}{% endfor %}
+<div class="g2 w"><div class="card hero"><div class="lbl">Balance de {{mes_txt|lower}}</div><div class="big">{{(tot.ing-tot.gas)|cop}}</div>
+<div class="two"><div><small>{{ico('down',15)}} Ingresos</small><b>{{tot.ing|cop}}</b></div><div><small>{{ico('up',15)}} Gastos</small><b>{{tot.gas|cop}}</b></div></div></div>
+<div class="card"><div class="hd"><h2>{{ico('users',19)}}Por persona</h2></div>
+{% for x in pers %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small class="ok">+{{x.ing|cop}}</small> <small class="bad">&nbsp;−{{x.gas|cop}}</small></div></div>
+{% else %}<div class="empty">{{ico('users',28)}}<div>Aún no hay movimientos este mes</div></div>{% endfor %}</div></div>
+{% if pres %}<div class="card"><div class="hd"><h2>{{ico('target',19)}}Presupuestos</h2><a href="/avisos" class="sub">Editar</a></div>
 {% for p in pres %}{% set pct=(p.gasto/p.limite*100)|round|int if p.limite else 0 %}
-<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:8px"><b>{{p.categoria|emo}} {{p.categoria}}</b>
-<span class="mut">{{p.gasto|cop}} de {{p.limite|cop}} · <b class="{{'bad' if pct>=100 else 'warn' if pct>=80 else 'ok'}}">{{pct}}%</b></span></div>
-<div class="bar {{'x' if pct>=100 else 'w' if pct>=80}}"><i style="width:{{[pct,100]|min}}%"></i></div></div>{% endfor %}</div>{% endif %}
-<div class="g2"><div class="card"><h2>Gastos por categoría</h2>
-{% if cats %}<div style="max-width:300px;margin:0 auto 10px"><canvas id="c1"></canvas></div>
-<table>{% for x in cats %}<tr><td>{{x.categoria|emo}} {{x.categoria}}</td><td class="n"><b>{{x.v|cop}}</b></td></tr>{% endfor %}</table>
-{% else %}<p class="mut">Sin gastos este mes. <a href="/subir">Sube un extracto</a>.</p>{% endif %}</div>
-<div class="card"><h2>Por persona</h2><table><tr><th>Persona</th><th class="n">Ingresos</th><th class="n">Gastos</th></tr>
-{% for x in pers %}<tr><td><b>{{x.nombre}}</b></td><td class="n ok">{{x.ing|cop}}</td><td class="n bad">{{x.gas|cop}}</td></tr>{% else %}<tr><td colspan="3" class="mut">Aún sin datos.</td></tr>{% endfor %}</table></div></div>
-<div class="card" style="margin-top:16px"><h2>Últimos meses</h2><canvas id="c2" height="130"></canvas></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script>
-const cats={{cats|tojson}},hist={{hist|tojson}},css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim();
-Chart.defaults.color=col('--mut');Chart.defaults.font.family='-apple-system,Segoe UI,Roboto,sans-serif';
-const pal=['#9b2ff0','#e0334c','#0e9f6e','#f5a524','#2a8cf0','#e0509e','#14b8a6','#8b8fa3'];
-const fmt=v=>'$'+Math.round(v).toLocaleString('es-CO');
-if(cats.length)new Chart(c1,{type:'doughnut',data:{labels:cats.map(x=>x.categoria),datasets:[{data:cats.map(x=>x.v),backgroundColor:pal,borderColor:col('--card'),borderWidth:3}]},options:{cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}});
-new Chart(c2,{type:'bar',data:{labels:hist.map(x=>x.mes),datasets:[{label:'Ingresos',data:hist.map(x=>x.ing),backgroundColor:'#0e9f6e',borderRadius:6},{label:'Gastos',data:hist.map(x=>x.gas),backgroundColor:'#e0334c',borderRadius:6}]},options:{scales:{y:{ticks:{callback:fmt},grid:{color:col('--bd')}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}}}});
+<div style="padding:8px 0"><div class="pres"><span style="display:flex;gap:10px;align-items:center">{{p.categoria|ico(16,'s')}}<b>{{p.categoria}}</b></span>
+<span class="sub">{{p.gasto|cop}} de {{p.limite|cop}} <span class="pill {{'bad' if pct>=100 else 'warn' if pct>=80 else 'ok'}}">{{pct}}%</span></span></div>
+<div class="bar {{'bad' if pct>=100 else 'warn' if pct>=80 else 'ok'}}"><i style="width:{{[pct,100]|min}}%"></i></div></div>{% endfor %}</div>{% endif %}
+<div class="card"><div class="hd"><h2>{{ico('chart',19)}}Gastos por categoría</h2></div>
+{% if cats %}<div class="donutw"><div id="donut"></div><div>
+{% for x in cats %}<div class="catrow">{{x.categoria|ico(17,'s')}}<div><b>{{x.categoria}}</b></div><div class="n"><b>{{x.v|cop}}</b> <span class="sub">{{(x.v/tot.gas*100)|round|int}}%</span></div>
+<div class="bar" style="--c:{{x.categoria|color}}"><i style="width:{{(x.v/cats[0].v*100)|round|int}}%"></i></div></div>{% endfor %}</div></div>
+{% else %}<div class="empty">{{ico('upload',30)}}<div style="margin-bottom:10px">Todavía no hay gastos en {{mes_txt|lower}}</div><a class="btn" href="/subir">Subir un extracto</a></div>{% endif %}</div>
+<div class="card"><div class="hd"><h2>{{ico('up',19)}}Últimos meses</h2></div><div id="barras"></div></div></div>
+<script src="/static/charts.js"></script><script>
+const cats={{cats|tojson}},hist={{hist|tojson}},colores={{cats|map(attribute='categoria')|map('color')|list|tojson}};
+if(cats.length)donut(document.getElementById("donut"),cats.map((x,i)=>({v:x.v,c:colores[i]})),COP({{tot.gas}}),"en gastos");
+barras(document.getElementById("barras"),hist);
 </script>{% endblock %}

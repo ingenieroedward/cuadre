@@ -106,9 +106,9 @@ def revisar_presupuestos(db, pem):
         for umbral in (100, 80):
             if g / lim * 100 >= umbral:
                 if umbral == 100:
-                    t, b = f"🚨 Te pasaste en {p['categoria']}", f"Llevas {cop(g)} de {cop(lim)} este mes."
+                    t, b = f"Te pasaste en {p['categoria']}", f"Llevas {cop(g)} de {cop(lim)} este mes."
                 else:
-                    t, b = f"⚠️ {p['categoria']} al 80%", f"Llevas {cop(g)} de {cop(lim)}. Quedan {cop(lim - g)}."
+                    t, b = f"{p['categoria']} al 80%", f"Llevas {cop(g)} de {cop(lim)}. Quedan {cop(lim - g)}."
                 avisar(db, pem, f"pres:{p['categoria']}:{mes}:{umbral}", t, b, url="/")
                 break
 
@@ -135,7 +135,7 @@ def revisar(db, pem):
             cuerpo = (f"Pago mínimo {cop(p['pago_minimo'] or 0)}"
                       + (f" · para no pagar intereses {cop(p['a_pagar'])}" if p["a_pagar"] else "")
                       + f" · límite {date.fromisoformat(p['fecha_limite']):%d/%m}")
-            avisar(db, pem, f"tarjeta:{p['id']}:{dias}", f"💳 Tu tarjeta {p['banco']} {quedan}", cuerpo, [p["user_id"]])
+            avisar(db, pem, f"tarjeta:{p['id']}:{dias}", f"Tu tarjeta {p['banco']} {quedan}", cuerpo, [p["user_id"]])
 
     for r in recs:                                            # 2) recordatorios de la familia
         for k in (0, 1):
@@ -143,11 +143,11 @@ def revisar(db, pem):
             obj = date(y, m, min(r["dia"], calendar.monthrange(y, m)[1]))
             if hoy == obj - timedelta(days=r["antes"]):
                 cuerpo = "Es hoy" if r["antes"] == 0 else f"Falta{'n' if r['antes'] > 1 else ''} {r['antes']} día{'s' if r['antes'] > 1 else ''} ({obj:%d/%m})"
-                avisar(db, pem, f"rec:{r['id']}:{hoy}", f"🔔 {r['titulo']}", cuerpo, [r["para"]] if r["para"] else None)
+                avisar(db, pem, f"rec:{r['id']}:{hoy}", r['titulo'], cuerpo, [r["para"]] if r["para"] else None)
 
     if hoy.day in (dia_ext, dia_ext + 3):                     # 3) extractos del mes
         if not ultima or date.fromisoformat(ultima[:10]) < date(hoy.year, hoy.month, dia_ext):
-            avisar(db, pem, f"extracto:{hoy}", "📄 Ya llegaron los extractos",
+            avisar(db, pem, f"extracto:{hoy}", "Ya llegaron los extractos",
                    "Descarga los PDF de tus bancos y súbelos a Cuadre para cuadrar el mes.", url="/subir")
 
     revisar_presupuestos(db, pem)                             # 4) presupuestos
