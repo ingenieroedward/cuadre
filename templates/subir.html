@@ -4,9 +4,13 @@
 <form class="card" method="post" enctype="multipart/form-data"><label class="drop" id="drop">{{ico('upload',34)}}<b>Elige tus extractos en PDF</b><span class="sub" id="nom">o arrástralos aquí</span>
 <input type="file" name="archivos" accept=".pdf" multiple required onchange="nom.textContent=this.files.length+(this.files.length==1?' archivo seleccionado: '+this.files[0].name:' archivos seleccionados')"></label>
 <div class="frm row" style="margin-top:16px">
-<label class="f">De quién<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
-<label class="f">Cuenta<input name="banco" list="cuentas-lista" value="{{bancos[0] if bancos else 'Nu'}}" autocomplete="off" required><datalist id="cuentas-lista">{% for b in bancos %}<option value="{{b}}">{% endfor %}</datalist></label>
-<label class="f">Tipo (se detecta solo)<select name="tipo"><option value="cuenta">Cuenta de ahorros</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
+<label class="f">De quién<select name="persona" id="cu-per" onchange="cuFiltrar()">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
+<label class="f">Cuenta<select name="banco" id="cu-sel" onchange="cuNueva()">
+{% for uid,nom in pares %}<option value="{{nom}}" data-u="{{uid}}">{{nom}}</option>{% endfor %}
+{% if not pares %}{% for b in bancos %}<option value="{{b}}" data-u="0">{{b}}</option>{% endfor %}{% endif %}
+<option value="__nueva__" data-u="*">+ Otra cuenta…</option></select></label>
+<label class="f" id="cu-nueva" style="display:none">Nombre de la cuenta<input name="banco_nueva" placeholder="Bancolombia Ahorros…"></label>
+<label class="f">Tipo (se detecta solo)<select name="tipo"><option value="cuenta">Cuenta</option><option value="tarjeta">Tarjeta</option></select></label>
 <label class="f">Clave del PDF (tu cédula)<input name="clave" type="password" autocomplete="off" placeholder="Solo para abrirlo"></label></div>
 <div style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><button class="btn lg">{{ico('upload',18)}}Subir y leer</button>
 <span class="sub" style="display:flex;gap:7px;align-items:center">{{ico('lock',16)}}La clave no se guarda. Tampoco el PDF, solo los movimientos.</span></div></form>
@@ -26,6 +30,12 @@
 <div class="step"><b class="k">1</b><div><b>Descarga el PDF</b><div class="sub">Desde el correo de tu banco. Los de Nu llegan los primeros días del mes.</div></div></div>
 <div class="step"><b class="k">2</b><div><b>Súbelo aquí</b><div class="sub">Con tu cédula como clave si el PDF la pide. Puedes subir varios.</div></div></div>
 <div class="step"><b class="k">3</b><div><b>Revisa</b><div class="sub">Corrige categorías si hace falta. Subir dos veces el mismo extracto no duplica nada.</div></div></div></div></div></div>
-<script>const d=document.getElementById("drop");["dragenter","dragover"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.add("on")}));
+<script>
+function cuFiltrar(){const p=document.getElementById("cu-per").value,s=document.getElementById("cu-sel");let hay=false,primera=null;
+ [...s.options].forEach(o=>{const u=o.dataset.u,ver=(u==="*"||u==="0"||u===p);o.hidden=!ver;o.disabled=!ver;if(ver&&u!=="*"&&!primera)primera=o;if(ver&&u!=="*")hay=true});
+ if(s.selectedOptions[0]&&s.selectedOptions[0].disabled)s.value=primera?primera.value:"__nueva__";cuNueva()}
+function cuNueva(){document.getElementById("cu-nueva").style.display=document.getElementById("cu-sel").value==="__nueva__"?"":"none"}
+document.addEventListener("DOMContentLoaded",cuFiltrar);
+const d=document.getElementById("drop");["dragenter","dragover"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.add("on")}));
 ["dragleave","drop"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.remove("on")}));
 d.addEventListener("drop",x=>{const i=d.querySelector("input");i.files=x.dataTransfer.files;i.dispatchEvent(new Event("change"))});</script>{% endblock %}

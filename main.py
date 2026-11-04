@@ -472,14 +472,18 @@ def export(request: Request, mes: str = "", persona: int = 0, cat: str = "", q: 
 def subir_form(request: Request):
     u = user(request)
     c = db(); users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
-    lista_c = cuentas.nombres(c, BANCOS); c.close()
-    return render(request, "subir.html", u=u, users=users, bancos=lista_c, resultado=None)
+    lista_c = cuentas.nombres(c, BANCOS)
+    pares = [(r["user_id"], r["nombre"]) for r in c.execute("SELECT user_id,nombre FROM cuentas WHERE activa=1 ORDER BY nombre")]
+    c.close()
+    return render(request, "subir.html", u=u, users=users, bancos=lista_c, pares=pares, resultado=None)
 
 
 @app.post("/subir")
 async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile] = File(...), persona: int = Form(...),
-                banco: str = Form("Nu"), tipo: str = Form("cuenta"), clave: str = Form("")):
+                banco: str = Form("Nu"), banco_nueva: str = Form(""), tipo: str = Form("cuenta"), clave: str = Form("")):
     u = user(request)
+    if banco == "__nueva__":
+        banco = banco_nueva
     c = db()
     reglas = [(r["kw"], r["categoria"]) for r in c.execute("SELECT kw,categoria FROM reglas")]
     banco = banco.strip() or "Nu"
@@ -559,9 +563,10 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
     c.commit()
     users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
     lista_c = cuentas.nombres(c, BANCOS)
+    pares = [(r["user_id"], r["nombre"]) for r in c.execute("SELECT user_id,nombre FROM cuentas WHERE activa=1 ORDER BY nombre")]
     c.close()
     bg.add_task(avisos.revisar_presupuestos, db, PEM)
-    return render(request, "subir.html", u=u, users=users, bancos=lista_c, resultado=resultado)
+    return render(request, "subir.html", u=u, users=users, bancos=lista_c, pares=pares, resultado=resultado)
 
 
 # ---------- Miembros ----------
