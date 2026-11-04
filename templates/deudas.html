@@ -7,7 +7,6 @@
 {% set tj=res.tarjeta %}{% set p=res.proxima %}
 {% if p and (not tj or p.e.proxima <= tj.t.fecha_limite|todate) %}<div class="li" style="padding-left:0"><span class="chip">{{ico('bank',18)}}</span><div class="t"><b>{{p.d.nombre}}</b><small>{{p.e.proxima.strftime('%d/%m/%Y')}} · {{'hoy' if p.e.dias==0 else 'en %d día(s)'|format(p.e.dias) if p.e.dias>0 else 'vencida hace %d día(s)'|format(-p.e.dias)}}</small></div><div class="n b">{{p.e.proxima_monto|cop}}</div></div>
 {% elif tj %}<div class="li" style="padding-left:0"><span class="chip" style="--c:#d6336c">{{ico('card',18)}}</span><div class="t"><b>Tarjeta {{tj.t.banco}}</b><small>{{tj.t.fecha_limite[8:]}}/{{tj.t.fecha_limite[5:7]}}/{{tj.t.fecha_limite[:4]}} · {{'hoy' if tj.dias==0 else 'en %d día(s)'|format(tj.dias) if tj.dias>0 else 'vencida hace %d día(s)'|format(-tj.dias)}}</small></div><div class="n b">{{(tj.t.a_pagar or tj.t.pago_minimo or 0)|cop}}</div></div>{% endif %}
-{% if res.me_deben %}<div class="sub" style="margin-top:8px">Además te deben {{res.me_deben|cop}}.</div>{% endif %}</div>{% endif %}
 {% if res.me_deben %}<div class="sub" style="margin-top:8px">Además te deben {{res.me_deben|cop}}.</div>{% endif %}</div></div>{% endif %}
 
 {% macro tarjeta(x) %}{% set d=x.d %}{% set e=x.e %}
