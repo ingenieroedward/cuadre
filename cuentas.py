@@ -23,6 +23,20 @@ def asegurar(c, user_id, nombre):
               (user_id, nombre, nombre, tipo, ex))
 
 
+def asegurar_tarjeta(c, user_id, banco):
+    """Cada tarjeta de crédito tiene su propia ficha (para su cuota de manejo): 'Tarjeta Nu'."""
+    if not banco or banco in RESERVADOS:
+        return
+    c.execute("INSERT OR IGNORE INTO cuentas(user_id,nombre,entidad,tipo,exenta) VALUES(?,?,?,'tarjeta',0)",
+              (user_id, f"Tarjeta {banco}", banco))
+
+
+def manejo_tarjeta(c, user_id, banco):
+    r = c.execute("""SELECT cuota_manejo FROM cuentas WHERE user_id=? AND tipo='tarjeta' AND activa=1
+        AND (lower(entidad)=lower(?) OR lower(nombre)=lower(?)) ORDER BY id LIMIT 1""", (user_id, banco, f"Tarjeta {banco}")).fetchone()
+    return (r["cuota_manejo"] or 0.0) if r else None
+
+
 def resolver(c, user_id, entidad):
     """El banco que detecta una alerta (p. ej. 'Nu') -> el nombre de la cuenta de esa persona (p. ej. 'Nu Ahorros')."""
     if not entidad or entidad in RESERVADOS:
@@ -58,7 +72,7 @@ def listado(c, mes, saldos_actuales):
         salidas = c.execute("""SELECT COALESCE(SUM(-monto),0) v, COUNT(*) n FROM movs WHERE user_id=? AND banco=? AND monto<0
             AND origen!='tarjeta' AND substr(fecha,1,7)=?""", (q["user_id"], q["nombre"], mes)).fetchone()
         total = c.execute("SELECT COUNT(*) n FROM movs WHERE user_id=? AND banco=?", (q["user_id"], q["nombre"])).fetchone()["n"]
-        cobros = c.execute("""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE user_id=? AND banco=? AND categoria='Intereses y cobros'
+        cobros = 0 if q["tipo"] == "tarjeta" else c.execute("""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE user_id=? AND banco=? AND categoria='Intereses y cobros'
             AND monto<0 AND substr(fecha,1,7)=?""", (q["user_id"], q["nombre"], mes)).fetchone()["v"]
         s = saldo.get((q["user_id"], q["nombre"]))
         gmf = 0.0 if (q["exenta"] or q["tipo"] == "tarjeta") else salidas["v"] * GMF

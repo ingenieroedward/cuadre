@@ -25,17 +25,22 @@
 <label class="f">Últimos 4 dígitos<input name="ultimos4" id="dc-4" inputmode="numeric" maxlength="4" placeholder="Opcional"></label></div>
 <datalist id="dc-ent"><option>Nu</option><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Davivienda</option><option>BBVA</option><option>Banco de Bogotá</option></datalist>
 <label class="f">Tipo<select name="tipo" id="dc-t2"><option value="ahorros">Cuenta de ahorros</option><option value="corriente">Cuenta corriente</option><option value="bajo_monto">Depósito de bajo monto</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
-<label class="f">Cuota de manejo al mes <span style="font-weight:500">(si no tiene, déjalo vacío)</span><input name="cuota_manejo" id="dc-m" inputmode="decimal" placeholder="$ 0"></label>
+<label class="f" id="dc-mw"><span id="dc-ml">Cuota de manejo al mes</span><input name="cuota_manejo" id="dc-m" inputmode="decimal" placeholder="$ 0"><span style="font-weight:500" id="dc-mh">Si no tiene, déjalo vacío.</span></label>
 <label class="f" id="dc-p">De quién<select name="persona">{% for x in usuarios_c %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
-<label class="f" style="flex-direction:row;align-items:center;gap:10px;color:var(--tx);font-size:14px;font-weight:600"><input type="checkbox" name="exenta" value="1" id="dc-x" style="width:20px;height:20px;padding:0">Esta cuenta está exenta del 4x1000</label>
+<label class="f" id="dc-xw" style="flex-direction:row;align-items:center;gap:10px;color:var(--tx);font-size:14px;font-weight:600"><input type="checkbox" name="exenta" value="1" id="dc-x" style="width:20px;height:20px;padding:0">Esta cuenta está exenta del 4x1000</label>
 <button style="justify-content:center" id="dc-b">Guardar cuenta</button></form></dialog>
 <script>
 const $=id=>document.getElementById(id);
+function formCuenta(){const tipo=$("dc-t2").value,tj=tipo==="tarjeta",bm=tipo==="bajo_monto";
+ $("dc-xw").style.display=tj?"none":"";                       // la tarjeta no paga 4x1000 por sí misma
+ $("dc-mw").style.display=(bm&&!$("dc-m").value)?"none":"";    // los depósitos de bajo monto normalmente no tienen cuota de manejo
+ $("dc-ml").textContent=tj?"Cuota de manejo de la tarjeta al mes":"Cuota de manejo de la cuenta al mes";
+ $("dc-mh").textContent=tj?"Es lo que te cobra el banco por tener la tarjeta. Si no tiene, déjalo vacío.":"Solo si tu banco te cobra una por la cuenta. Si no, déjalo vacío.";}
 function abrirCuenta(c){
  const f=$("dc-f");
  if(c){f.action="/cuentas/"+c.id;$("dc-t").textContent="Editar cuenta";$("dc-n").value=c.nombre;$("dc-e").value=c.entidad||"";$("dc-4").value=c.ultimos4||"";
   $("dc-t2").value=c.tipo;$("dc-x").checked=!!c.exenta;$("dc-m").value=c.manejo?String(c.manejo).replace(".",","):"";$("dc-p").style.display="none";f.dataset.editando="1";}
  else{f.reset();f.action="/cuentas";$("dc-t").textContent="Nueva cuenta";$("dc-p").style.display="";f.dataset.editando="";}
- $("dcuenta").showModal();}
-document.addEventListener("change",e=>{if(e.target.id==="dc-t2"&&!$("dc-f").dataset.editando)$("dc-x").checked=(e.target.value==="bajo_monto")});
+ formCuenta();$("dcuenta").showModal();}
+document.addEventListener("change",e=>{if(e.target.id==="dc-t2"){if(!$("dc-f").dataset.editando)$("dc-x").checked=(e.target.value==="bajo_monto");formCuenta()}});
 </script>{% endblock %}

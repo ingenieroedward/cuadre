@@ -540,6 +540,7 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                 notas.append(("warn", "Costos de la tarjeta este corte: " + ", ".join(f"{k.lower()} {avisos.cop(v)}" for k, v in costos.items()) + "."))
             elif info.get("costos"):
                 notas.append(("ok", "Sin intereses ni comisiones este corte."))
+            cuentas.asegurar_tarjeta(c, persona, banco)
             nv, ac = deudas.sincronizar_tarjeta(c, persona, banco, movs, info["fecha_limite"])
             if nv or ac:
                 notas.append(("ok", f"Compras a cuotas: {nv} nueva(s) y {ac} actualizada(s) en Deudas."))
@@ -1038,7 +1039,7 @@ def cargar_tarjetas(c, todas):
                   and not x["e"]["pagada"]]
         dias = (date.fromisoformat(t["fecha_limite"]) - date.today()).days
         uso = (t["usado"] / t["cupo"]) if t["cupo"] and t["usado"] is not None else None
-        out.append({"t": t, "cuotas": cuotas, "dias": dias, "uso": uso})
+        out.append({"t": t, "cuotas": cuotas, "dias": dias, "uso": uso, "manejo": cuentas.manejo_tarjeta(c, t["user_id"], t["banco"])})
     return out
 
 
