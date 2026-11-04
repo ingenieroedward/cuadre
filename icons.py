@@ -41,6 +41,9 @@ P = {
  "lock": '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
  "shield": '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
  "finger": '<path d="M2 12a10 10 0 0 1 18-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M9 6.8a6 6 0 0 1 9 5.2c0 .47 0 1.17-.02 2"/>',
+ "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+ "moon": '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+ "monitor": '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
  "chevl": '<path d="m15 18-6-6 6-6"/>',
  "chevr": '<path d="m9 18 6-6-6-6"/>',
  "logout": '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
@@ -82,3 +85,10 @@ def color(nombre):
 def cat(nombre, size=18, cls=""):
     """Chip con el icono de la categoría, en su color."""
     return Markup(f'<span class="chip {cls}" style="--c:{color(nombre)}">{svg(CATEGORIA.get(nombre, "help"), size)}</span>')
+
+
+def marca(size=24):
+    """Logo de Cuadre: una C abierta que guarda tres barras que suben. Usa el color del texto."""
+    return Markup(f'<svg class="i" width="{size}" height="{size}" viewBox="0 0 64 64" fill="none" stroke="currentColor" '
+                  f'stroke-linecap="round" aria-hidden="true"><path d="M43.6 17.9A18 18 0 1 0 43.6 46.1" stroke-width="7.5"/>'
+                  f'<path d="M27 41v-5M33 41v-10M39 41V25" stroke-width="4.6"/></svg>')

@@ -3,23 +3,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{% block t %}Cuadre{% endblock %}</title>
 <meta name="theme-color" content="#7a1fd6"><link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/static/icon-192.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" href="/static/icon-192.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<link rel="stylesheet" href="/static/style.css?v=5"></head><body>
+<script src="/static/theme.js"></script><link rel="stylesheet" href="/static/style.css?v=8"></head><body class="{{'app' if u}}">
 {% if u %}{% set p=request.url.path %}
-<aside class="side"><a class="logo" href="/"><i>C</i>Cuadre</a>
+<aside class="side"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a>
 <nav><a href="/" class="{{'on' if p=='/'}}">{{ico('chart')}}Resumen</a>
 <a href="/movimientos" class="{{'on' if p.startswith('/mov')}}">{{ico('receipt')}}Movimientos</a>
 <a href="/subir" class="{{'on' if p=='/subir'}}">{{ico('upload')}}Subir extractos</a>
 <a href="/avisos" class="{{'on' if p.startswith('/avisos')}}">{{ico('bell')}}Avisos</a>
 <a href="/miembros" class="{{'on' if p=='/miembros'}}">{{ico('users')}}Familia</a></nav>
 <div class="me"><span class="av">{{u.nombre|inicial}}</span><div style="flex:1;min-width:0"><b>{{u.nombre}}</b><a href="/cuenta" style="padding:0;display:inline"><small>Mi cuenta</small></a></div>
-<a href="/logout" title="Salir">{{ico('logout')}}</a></div></aside>
-<header class="mtop"><a class="logo" href="/"><i>C</i>Cuadre</a><span class="sp"></span><a href="/cuenta" class="av s">{{u.nombre|inicial}}</a></header>
+<button class="th" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button><a href="/logout" title="Salir">{{ico('logout')}}</a></div></aside>
+<header class="mtop"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a><span class="sp"></span><button class="th" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button><a href="/cuenta" class="av s">{{u.nombre|inicial}}</a></header>
 <nav class="tabs"><a href="/" class="{{'on' if p=='/'}}">{{ico('chart',22)}}Resumen</a><a href="/movimientos" class="{{'on' if p.startswith('/mov')}}">{{ico('receipt',22)}}Movimientos</a>
 <a href="/subir" class="{{'on' if p=='/subir'}}">{{ico('upload',22)}}Subir</a><a href="/avisos" class="{{'on' if p.startswith('/avisos')}}">{{ico('bell',22)}}Avisos</a>
 <a href="/miembros" class="{{'on' if p=='/miembros'}}">{{ico('users',22)}}Familia</a></nav>
-{% endif %}
+{% else %}<button class="th float" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button>{% endif %}
 <main class="main" {% if not u %}style="max-width:none;padding:0"{% endif %}>
 {% if msg %}<div class="flash m">{{ico('check')}}{{msg}}</div>{% endif %}{% if err %}<div class="flash e">{{ico('alert')}}{{err}}</div>{% endif %}
 {% block c %}{% endblock %}</main><script src="/static/app.js" defer></script></body></html>

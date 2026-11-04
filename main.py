@@ -88,6 +88,7 @@ def fecha_larga(iso):
     d = date.fromisoformat(iso)
     return f"{DIA_ES[d.weekday()]} {d.day} {MES_ES[d.month - 1][:3]}"
 tpl.env.globals["ico"] = icons.svg
+tpl.env.globals["marca"] = icons.marca
 CATEGORIAS = list(lector.CATEGORIAS_BASE) + ["Transferencias recibidas", "Transferencias enviadas", "Traslado propio",
                                               "Pago de tarjeta", "Reversado", "Devoluciones", "Arriendo", "Ocio", "Otros"]
 EXC = avisos.EXC
