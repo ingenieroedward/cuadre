@@ -151,6 +151,12 @@ def _dinero(rx, texto):
     return a_numero(m[1]) if m else None
 
 
+def _bolsillo(etiqueta, todo):
+    """'Dinero en tus cajitas $1.157.268,28  Rendimientos | 9,35% Efectivo Anual  +$2.988,33' -> saldo, tasa E.A. y rendimiento."""
+    m = re.search(etiqueta + r"\s*\$([\d.]+,\d{2})\s*Rendimientos?\s*\|?\s*([\d.,]+)\s*%\s*Efectivo Anual\s*\+?\$([\d.]+,\d{2})", todo, re.I | re.S)
+    return {"saldo": a_numero(m[1]), "ea": a_numero(m[2]), "rend": a_numero(m[3])} if m else None
+
+
 def info_cuenta(todo):
     """Totales y saldos que Nu imprime en el resumen del extracto."""
     entro = _dinero(r"Lo que entr[oó] a tu cuenta\s*\+?\$([\d.]+,\d{2})", todo)
@@ -162,7 +168,9 @@ def info_cuenta(todo):
     return {"entro": entro, "salio": salio, "cierre": cierre,
             "inicio": _dinero(r"Tu dinero al inicio del mes\s*\$([\d.]+,\d{2})", todo),
             "final": _dinero(r"Tu dinero a final del mes\s*\$([\d.]+,\d{2})", todo),
-            "gmf": _dinero(r"Impuesto del 4x1000\s*\$([\d.]+,\d{2})", todo)}
+            "gmf": _dinero(r"Impuesto del 4x1000\s*\$([\d.]+,\d{2})", todo),
+            "rend_total": _dinero(r"Rendimiento total de tu cuenta\s*\+?\$([\d.]+,\d{2})", todo),
+            "cajitas": _bolsillo(r"Dinero en tus cajitas", todo), "cuenta_nu": _bolsillo(r"Dinero en tu Cuenta Nu", todo)}
 
 
 def info_tarjeta(todo):

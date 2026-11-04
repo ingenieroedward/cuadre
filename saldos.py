@@ -10,6 +10,17 @@ def guardar(c, user_id, banco, fecha, saldo, corte_id, fuente):
               (user_id, banco, fecha, saldo, corte_id, fuente))
 
 
+def guardar_cajitas(c, user_id, banco, fecha, info):
+    cj, cu = info.get("cajitas"), info.get("cuenta_nu") or {}
+    if not cj:
+        return
+    c.execute("""INSERT INTO cajitas(user_id,banco,fecha,saldo_cajitas,ea_cajitas,rend_cajitas,saldo_cuenta,ea_cuenta,rend_cuenta)
+        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,banco,fecha) DO UPDATE SET saldo_cajitas=excluded.saldo_cajitas,
+        ea_cajitas=excluded.ea_cajitas, rend_cajitas=excluded.rend_cajitas, saldo_cuenta=excluded.saldo_cuenta,
+        ea_cuenta=excluded.ea_cuenta, rend_cuenta=excluded.rend_cuenta""",
+              (user_id, banco, fecha, cj["saldo"], cj["ea"], cj["rend"], cu.get("saldo"), cu.get("ea"), cu.get("rend")))
+
+
 def actuales(c):
     """Una fila por (persona, banco): saldo base, movimientos posteriores y saldo estimado hoy."""
     filas = c.execute("""SELECT s.*, u.nombre FROM saldos s JOIN users u ON u.id=s.user_id
@@ -20,7 +31,16 @@ def actuales(c):
         delta = c.execute("""SELECT COALESCE(SUM(monto),0) v, COUNT(*) n, SUM(estado='provisional') p FROM movs
             WHERE user_id=? AND banco=? AND origen!='tarjeta' AND (fecha > ? OR (fecha=? AND id > ?))""",
                           (s["user_id"], s["banco"], s["fecha"], s["fecha"], s["corte_id"])).fetchone()
-        out.append({"id": s["id"], "user_id": s["user_id"], "nombre": s["nombre"], "banco": s["banco"], "fecha": s["fecha"],
+        caj = c.execute("""SELECT * FROM cajitas WHERE user_id=? AND banco=? ORDER BY fecha DESC LIMIT 1""", (s["user_id"], s["banco"])).fetchone()
+        cfg = c.execute("SELECT ea_actual FROM rend_cfg WHERE user_id=? AND banco=?", (s["user_id"], s["banco"])).fetchone()
+        info_caj = None
+        if caj and caj["ea_cajitas"] is not None:
+            ea_ext = caj["ea_cajitas"]
+            ea = cfg["ea_actual"] if cfg and cfg["ea_actual"] is not None else ea_ext
+            est = max(s["saldo"] + delta["v"] - (caj["saldo_cuenta"] or 0), 0.0)
+            info_caj = {"ea_extracto": ea_ext, "ea": ea, "extra": ea - ea_ext, "saldo": est, "fecha": caj["fecha"],
+                        "rend_mes": est * ((1 + ea / 100) ** (1 / 12) - 1), "rend_extracto": caj["rend_cajitas"]}
+        out.append({"cajitas": info_caj, "id": s["id"], "user_id": s["user_id"], "nombre": s["nombre"], "banco": s["banco"], "fecha": s["fecha"],
                     "base": s["saldo"], "fuente": s["fuente"], "delta": delta["v"], "n": delta["n"], "pend": delta["p"] or 0,
                     "estimado": s["saldo"] + delta["v"]})
     return out

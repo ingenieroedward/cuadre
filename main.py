@@ -151,6 +151,9 @@ def init():
         mov_id INTEGER, nota TEXT);
     CREATE TABLE IF NOT EXISTS cuentas(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, entidad TEXT, tipo TEXT DEFAULT 'ahorros',
         exenta INTEGER DEFAULT 0, ultimos4 TEXT, activa INTEGER DEFAULT 1, UNIQUE(user_id,nombre));
+    CREATE TABLE IF NOT EXISTS cajitas(id INTEGER PRIMARY KEY, user_id INTEGER, banco TEXT, fecha TEXT, saldo_cajitas REAL, ea_cajitas REAL,
+        rend_cajitas REAL, saldo_cuenta REAL, ea_cuenta REAL, rend_cuenta REAL, UNIQUE(user_id,banco,fecha));
+    CREATE TABLE IF NOT EXISTS rend_cfg(user_id INTEGER, banco TEXT, ea_actual REAL, PRIMARY KEY(user_id,banco));
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -543,6 +546,19 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
             notas.append(("warn", f"Pago mínimo {avisos.cop(info['pago_minimo'] or 0)}, vence el {info['fecha_limite']}. Te avisaremos antes."))
         if info and info.get("final") is not None and info.get("cierre"):
             saldos.guardar(c, persona, banco, info["cierre"], info["final"], saldos.CORTE_EXTRACTO, "extracto")
+            saldos.guardar_cajitas(c, persona, banco, info["cierre"], info)
+            if info.get("rend_total"):        # los rendimientos no vienen como líneas del extracto: se registran como ingreso del mes
+                hr = hashlib.sha256(f"rend|{persona}|{banco}|{info['cierre']}|{info['rend_total']}".encode()).hexdigest()
+                try:
+                    c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo,estado,fuente)
+                        VALUES(?,?,?,?,?,?,?,?,?,'confirmado','extracto')""", (persona, banco, info["cierre"], f"Rendimientos {banco}",
+                                                                         info["rend_total"], "Ingresos", "cuenta", hr, f.filename))
+                    notas.append(("ok", f"Rendimientos del mes: {avisos.cop(info['rend_total'])}."))
+                except sqlite3.IntegrityError:
+                    pass
+            if info.get("cajitas"):
+                cj = info["cajitas"]
+                notas.append(("ok", f"Cajitas: {avisos.cop(cj['saldo'])} al {info['cierre'][8:]}/{info['cierre'][5:7]}, rendimiento {('%.2f' % cj['ea']).replace('.', ',')}% E.A."))
             notas.append(("ok", f"Saldo al {info['cierre'][8:]}/{info['cierre'][5:7]}: {avisos.cop(info['final'])}."))
         if info and "entro" in info:
             ent = sum(x["monto"] for x in movs if x["monto"] > 0)
@@ -955,13 +971,24 @@ def descartar_captura(request: Request, cid: int):
 
 # ---------- Saldos ----------
 @app.post("/saldos/ajustar")
-def ajustar_saldo(request: Request, banco: str = Form(...), persona: int = Form(...), valor: str = Form(...)):
+def ajustar_saldo(request: Request, banco: str = Form(...), persona: int = Form(...), valor: str = Form(""), ea_cajitas: str = Form("")):
     user(request)
+    c = db()
+    if ea_cajitas.strip():
+        try:
+            ea = captura.numero_es(ea_cajitas.replace("%", ""))
+        except ValueError:
+            c.close()
+            return volver(request, "/", err="Escribe la tasa en números, por ejemplo 9,85")
+        c.execute("INSERT OR REPLACE INTO rend_cfg(user_id,banco,ea_actual) VALUES(?,?,?)", (persona, banco, ea))
+        if not valor.strip():
+            c.commit(); c.close()
+            return volver(request, "/", msg=f"Tasa de tus cajitas en {banco}: {('%.2f' % ea).replace('.', ',')}% E.A.")
     try:
         v = captura.numero_es(valor)
     except ValueError:
+        c.close()
         return volver(request, "/", err="Escribe el saldo en números")
-    c = db()
     corte = c.execute("SELECT COALESCE(MAX(id),0) m FROM movs").fetchone()["m"]
     saldos.guardar(c, persona, banco, avisos.ahora().date().isoformat(), v, corte, "manual")
     c.commit(); c.close()
