@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block c %}
+<div class="card"><h2>Subir extractos PDF</h2>
+<form class="row" method="post" enctype="multipart/form-data">
+<label>Archivos PDF<input type="file" name="archivos" accept=".pdf" multiple required></label>
+<label>De quién<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
+<label>Banco<select name="banco">{% for b in bancos %}<option>{{b}}</option>{% endfor %}</select></label>
+<label>Tipo<select name="tipo"><option value="cuenta">Cuenta de ahorros</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
+<label>Clave del PDF (cédula)<input name="clave" type="password" autocomplete="off"></label>
+<button>Subir</button></form>
+<p class="mut">La clave solo se usa para abrir el PDF; no se guarda. El PDF tampoco se guarda, solo los movimientos. Subir el mismo extracto dos veces no duplica nada.</p></div>
+{% if resultado %}<div class="card"><h2>Resultado</h2><table><tr><th>Archivo</th><th>Estado</th><th class="n">Leídos</th><th class="n">Nuevos</th></tr>
+{% for f,e,l,n in resultado %}<tr><td>{{f}}</td><td>{{e}}</td><td class="n">{{l}}</td><td class="n">{{n}}</td></tr>{% endfor %}</table>
+<p><a href="/movimientos">Revisar movimientos →</a></p></div>{% endif %}{% endblock %}

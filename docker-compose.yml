@@ -1,0 +1,16 @@
+services:
+  cuadre:
+    build: .
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      HTTPS_ONLY: "1"
+      OWN_NAMES: ${OWN_NAMES}
+    volumes:
+      - cuadre_data:/data
+    expose:
+      - "8000"
+volumes:
+  cuadre_data:

@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block c %}
+<div class="card"><h2>Miembros de la familia</h2>
+<table><tr><th>Nombre</th><th>Usuario</th><th>Rol</th></tr>
+{% for x in users %}<tr><td>{{x.nombre}}</td><td>{{x.username}}</td><td>{{'Administrador' if x.admin else 'Miembro'}}</td></tr>{% endfor %}</table></div>
+{% if u.admin %}<div class="card"><h2>Agregar miembro</h2>{% if error %}<p class="bad">{{error}}</p>{% endif %}
+<form class="row" method="post"><label>Nombre<input name="nombre" required></label><label>Usuario<input name="username" required></label>
+<label>Clave (mín. 8)<input name="password" type="password" minlength="8" required></label><button>Agregar</button></form></div>{% endif %}{% endblock %}

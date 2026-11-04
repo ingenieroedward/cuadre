@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block c %}
+{% macro cop(v) %}${{ "{:,.0f}".format(v).replace(",", ".") }}{% endmacro %}
+<form class="row card"><label>Mes<input type="month" name="mes" value="{{mes}}" onchange="this.form.submit()"></label></form>
+<div class="grid">
+<div class="card"><div class="mut">Ingresos</div><div class="big ok">{{cop(tot.ing)}}</div></div>
+<div class="card"><div class="mut">Gastos</div><div class="big bad">{{cop(tot.gas)}}</div></div>
+<div class="card"><div class="mut">Balance</div><div class="big {{ 'ok' if tot.ing>=tot.gas else 'bad' }}">{{cop(tot.ing-tot.gas)}}</div></div></div>
+<div class="grid">
+<div class="card"><h2>Gastos por categoría</h2>
+{% if cats %}<canvas id="c1" height="220"></canvas>
+<table style="margin-top:8px">{% for x in cats %}<tr><td>{{x.categoria}}</td><td class="n">{{cop(x.v)}}</td></tr>{% endfor %}</table>
+{% else %}<p class="mut">Sin gastos este mes. <a href="/subir">Sube un extracto</a>.</p>{% endif %}</div>
+<div class="card"><h2>Por persona</h2>
+<table><tr><th>Persona</th><th class="n">Ingresos</th><th class="n">Gastos</th></tr>
+{% for x in pers %}<tr><td>{{x.nombre}}</td><td class="n ok">{{cop(x.ing)}}</td><td class="n bad">{{cop(x.gas)}}</td></tr>{% endfor %}</table></div></div>
+<div class="card"><h2>Últimos meses</h2><canvas id="c2" height="120"></canvas></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const cats={{cats|tojson}},hist={{hist|tojson}};
+const pal=['#820ad1','#b66cf0','#14803c','#e08a00','#c0262d','#2a7fd4','#7a7a7a','#d94f9e'];
+if(cats.length)new Chart(c1,{type:'doughnut',data:{labels:cats.map(x=>x.categoria),datasets:[{data:cats.map(x=>x.v),backgroundColor:pal}]},options:{plugins:{legend:{position:'bottom'}}}});
+new Chart(c2,{type:'bar',data:{labels:hist.map(x=>x.mes),datasets:[{label:'Ingresos',data:hist.map(x=>x.ing),backgroundColor:'#14803c'},{label:'Gastos',data:hist.map(x=>x.gas),backgroundColor:'#c0262d'}]}});
+</script>{% endblock %}
