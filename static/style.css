@@ -159,3 +159,21 @@ input[type=date],input[type=month]{position:relative}
 @media(max-width:560px){.filters input[type=month]{width:100%}input[type=date],input[type=month]{min-height:38px}}
 .tipo.t3{grid-template-columns:repeat(3,1fr)}.tipo label.ret:has(input:checked){background:var(--warn);color:#fff}
 .wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}.wrap table{min-width:100%}
+
+/* ---------- tablas ---------- */
+table{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+th{font-size:11.5px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:10px 14px;border-bottom:1px solid var(--ln);white-space:nowrap;background:var(--sf2)}
+td{padding:11px 14px;border-bottom:1px solid var(--ln);white-space:nowrap;vertical-align:middle}
+tbody tr:last-child td,table tr:last-child td{border-bottom:0}
+th.n,td.n{text-align:right}th.c,td.c{text-align:center;width:1%}
+.card.flush .wrap{border-top:1px solid var(--ln);margin-top:12px}
+.card:not(.flush)>.wrap{margin:0 -4px}
+.tcuotas tr.pagada td{color:var(--mu)}.tcuotas tr.pagada td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+.tcuotas tr.prox td{background:var(--soft);font-weight:700;color:var(--tx)}.tcuotas tr.prox td:first-child{box-shadow:inset 3px 0 0 var(--ac)}
+.tcuotas tfoot td{font-weight:800;background:var(--sf2);border-top:1px solid var(--ln)}
+.tcuotas td:first-child{color:var(--mu);font-weight:700}
+.hide-s{}
+@media(max-width:560px){.hide-s{display:none}th,td{padding:9px 9px}th{font-size:11px}}
+.solo-s{display:none}
+@media(max-width:560px){.solo-s{display:inline}.tcuotas th,.tcuotas td{padding:9px 6px;font-size:12.5px}.tcuotas th{font-size:10.5px}.tcuotas td:first-child,.tcuotas th:first-child{padding-left:10px}
+ .tcuotas .pill{padding:1px 6px;font-size:10.5px}}
