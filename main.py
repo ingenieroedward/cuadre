@@ -15,6 +15,12 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.responses import Response
+from webauthn import (generate_authentication_options, generate_registration_options, options_to_json,
+                      verify_authentication_response, verify_registration_response)
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
+from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, PublicKeyCredentialDescriptor,
+                                      ResidentKeyRequirement, UserVerificationRequirement)
 
 import avisos
 import lector
@@ -103,6 +109,8 @@ def init():
     CREATE TABLE IF NOT EXISTS presupuestos(id INTEGER PRIMARY KEY, categoria TEXT UNIQUE, limite REAL);
     CREATE TABLE IF NOT EXISTS avisos_log(clave TEXT PRIMARY KEY, creado TEXT);
     CREATE TABLE IF NOT EXISTS config(clave TEXT PRIMARY KEY, valor TEXT);
+    CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
+        sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
     # Compatibilidad: si defines ADMIN_PASSWORD se crea el primer admin al arrancar.
     # Si no, la primera visita muestra la pantalla "Crear administrador" (recomendado).
@@ -221,7 +229,9 @@ def logout(request: Request):
 
 @app.get("/cuenta")
 def cuenta(request: Request):
-    return render(request, "cuenta.html", u=user(request))
+    u = user(request)
+    c = db(); pks = c.execute("SELECT id,nombre,creado FROM passkeys WHERE user_id=? ORDER BY id", (u["id"],)).fetchall(); c.close()
+    return render(request, "cuenta.html", u=u, pks=pks)
 
 
 @app.post("/cuenta/clave")
@@ -288,10 +298,11 @@ def dashboard(request: Request, mes: str = ""):
             for p in c.execute("SELECT categoria, limite FROM presupuestos ORDER BY categoria")]
     pagos = c.execute("""SELECT p.*, u.nombre FROM pagos_tarjeta p JOIN users u ON u.id=p.user_id
         WHERE p.pagado=0 ORDER BY p.fecha_limite LIMIT 3""").fetchall()
+    n_pk = c.execute("SELECT COUNT(*) n FROM passkeys WHERE user_id=?", (u["id"],)).fetchone()["n"]
     c.close()
     pagos = [dict(p, dias=(date.fromisoformat(p["fecha_limite"]) - date.today()).days) for p in pagos]
     return render(request, "dashboard.html", u=u, mes=mes, tot=tot, cats=[dict(x) for x in cats],
-                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos)
+                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0))
 
 
 # ---------- Movimientos ----------
@@ -559,3 +570,88 @@ def config_avisos(request: Request, dia_extracto: int = Form(...), hora_aviso: i
     c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('hora_aviso',?)", (str(max(0, min(23, hora_aviso))),))
     c.commit(); c.close()
     return volver(request, "/avisos", msg="Configuración guardada")
+
+
+# ---------- Passkeys (WebAuthn) ----------
+def rp(request: Request):
+    host = request.headers.get("host", "localhost")
+    return host.split(":")[0], f"{request.url.scheme}://{host}"
+
+
+def _json(opts):
+    return Response(content=options_to_json(opts), media_type="application/json")
+
+
+@app.post("/passkey/registro/opciones")
+def pk_reg_opciones(request: Request):
+    u = user(request)
+    rp_id, _ = rp(request)
+    c = db(); ya = c.execute("SELECT credential_id FROM passkeys WHERE user_id=?", (u["id"],)).fetchall(); c.close()
+    opts = generate_registration_options(
+        rp_id=rp_id, rp_name="Cuadre", user_id=f"u{u['id']}".encode(), user_name=u["username"], user_display_name=u["nombre"],
+        authenticator_selection=AuthenticatorSelectionCriteria(resident_key=ResidentKeyRequirement.REQUIRED,
+                                                               user_verification=UserVerificationRequirement.PREFERRED),
+        exclude_credentials=[PublicKeyCredentialDescriptor(id=base64url_to_bytes(x["credential_id"])) for x in ya])
+    request.session["pk_chal"] = bytes_to_base64url(opts.challenge)
+    return _json(opts)
+
+
+@app.post("/passkey/registro/verificar")
+async def pk_reg_verificar(request: Request):
+    u = user(request)
+    body = await request.json()
+    chal = request.session.pop("pk_chal", None)
+    rp_id, origin = rp(request)
+    if not chal:
+        return JSONResponse({"ok": False, "error": "Sesión vencida, intenta de nuevo"}, 400)
+    try:
+        v = verify_registration_response(credential=body["credencial"], expected_challenge=base64url_to_bytes(chal),
+                                         expected_rp_id=rp_id, expected_origin=origin)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"No se pudo verificar ({type(e).__name__})"}, 400)
+    c = db()
+    c.execute("INSERT OR REPLACE INTO passkeys(user_id,credential_id,public_key,sign_count,nombre,creado) VALUES(?,?,?,?,?,?)",
+              (u["id"], bytes_to_base64url(v.credential_id), bytes_to_base64url(v.credential_public_key), v.sign_count,
+               (body.get("nombre") or "Mi dispositivo")[:40], avisos.ahora().isoformat()))
+    c.commit(); c.close()
+    return {"ok": True}
+
+
+@app.post("/passkey/login/opciones")
+def pk_login_opciones(request: Request):
+    rp_id, _ = rp(request)
+    opts = generate_authentication_options(rp_id=rp_id, user_verification=UserVerificationRequirement.PREFERRED)
+    request.session["pk_chal"] = bytes_to_base64url(opts.challenge)
+    return _json(opts)
+
+
+@app.post("/passkey/login/verificar")
+async def pk_login_verificar(request: Request):
+    body = await request.json()
+    chal = request.session.pop("pk_chal", None)
+    rp_id, origin = rp(request)
+    cred = body.get("credencial") or {}
+    c = db()
+    row = c.execute("SELECT * FROM passkeys WHERE credential_id=?", (cred.get("id", ""),)).fetchone()
+    if not chal or not row:
+        c.close()
+        return JSONResponse({"ok": False, "error": "Esta passkey no está registrada"}, 400)
+    try:
+        v = verify_authentication_response(credential=cred, expected_challenge=base64url_to_bytes(chal),
+                                           expected_rp_id=rp_id, expected_origin=origin,
+                                           credential_public_key=base64url_to_bytes(row["public_key"]),
+                                           credential_current_sign_count=row["sign_count"])
+    except Exception as e:
+        c.close()
+        return JSONResponse({"ok": False, "error": f"No se pudo verificar ({type(e).__name__})"}, 400)
+    c.execute("UPDATE passkeys SET sign_count=? WHERE id=?", (v.new_sign_count, row["id"]))
+    c.commit(); c.close()
+    request.session["uid"] = row["user_id"]
+    return {"ok": True}
+
+
+@app.post("/passkey/{pid}/borrar")
+def pk_borrar(request: Request, pid: int):
+    u = user(request)
+    c = db(); c.execute("DELETE FROM passkeys WHERE id=? AND user_id=?", (pid, u["id"])); c.commit(); c.close()
+    return volver(request, "/cuenta", msg="Passkey eliminada")

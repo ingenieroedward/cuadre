@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block t %}Resumen · Cuadre{% endblock %}{% block c %}
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin:0">Resumen</h1>
 <form><input type="month" name="mes" value="{{mes}}" onchange="this.form.submit()"></form></div><div style="height:14px"></div>
+{% if sin_passkey %}<div class="card alerta" style="border-left-color:var(--pri)"><div class="e">🔐</div><div style="flex:1"><b>Entra más rápido</b><div class="mut">Crea una passkey y usa tu huella o Face ID en vez de la clave.</div></div><a class="btn s" style="background:var(--soft);color:var(--pri)" href="/cuenta">Crear passkey</a></div>{% endif %}
 {% for p in pagos %}{% if p.dias <= 7 %}
 <div class="card alerta {{'x' if p.dias<=1}}"><div class="e">💳</div><div style="flex:1"><b>Tarjeta {{p.banco}} {{'vence HOY' if p.dias==0 else 'venció hace %d día(s)'|format(-p.dias) if p.dias<0 else 'vence en %d día(s)'|format(p.dias)}}</b>
 <div class="mut">Pago mínimo {{p.pago_minimo|cop}}{% if p.a_pagar %} · sin intereses {{p.a_pagar|cop}}{% endif %} · límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}} · {{p.nombre}}</div></div>

@@ -1,9 +1,16 @@
 {% extends "base.html" %}{% block t %}Mi cuenta · Cuadre{% endblock %}{% block c %}
 <h1>Mi cuenta</h1>
+<div class="card"><h2>🔐 Passkeys</h2><p class="mut" style="margin-top:-6px">Entra con tu huella, Face ID o el PIN del dispositivo, sin escribir la clave. Crea una en cada celular o computador que uses.</p>
+<table>{% for k in pks %}<tr><td><b>{{k.nombre}}</b><div class="mut" style="font-size:13px">Creada el {{k.creado[:10]}}</div></td>
+<td class="n"><form method="post" action="/passkey/{{k.id}}/borrar" onsubmit="return confirm('¿Eliminar esta passkey?')"><button class="g">✕</button></form></td></tr>
+{% else %}<tr><td class="mut">Todavía no tienes passkeys.</td></tr>{% endfor %}</table>
+<div style="margin-top:14px"><button id="pk-add" onclick="registrarPasskey()" hidden>➕ Agregar passkey en este dispositivo</button>
+<p id="pk-msg" class="bad" style="font-weight:600;margin:10px 0 0"></p></div></div>
 <div class="g2"><div class="card"><h2>Mis datos</h2><form method="post" action="/cuenta/datos" style="display:grid;gap:12px">
 <label>Nombre<input name="nombre" value="{{u.nombre}}" required></label><label>Usuario<input name="username" value="{{u.username}}" autocapitalize="none" required></label><button>Guardar</button></form></div>
 <div class="card"><h2>Cambiar clave</h2><form method="post" action="/cuenta/clave" style="display:grid;gap:12px">
 <label>Clave actual<input name="actual" type="password" autocomplete="current-password" required></label>
 <label>Clave nueva (mínimo 8)<input name="nueva" type="password" minlength="8" autocomplete="new-password" required></label>
 <label>Repite la nueva<input name="nueva2" type="password" minlength="8" autocomplete="new-password" required></label><button>Cambiar clave</button></form></div></div>
-<div class="card"><h2>Más</h2><p><a href="/miembros">👨‍👩‍👧 Familia y miembros</a> &nbsp;·&nbsp; <a href="/logout">Salir</a></p></div>{% endblock %}
+<div class="card"><h2>Más</h2><p><a href="/miembros">👨‍👩‍👧 Familia y miembros</a> &nbsp;·&nbsp; <a href="/logout">Salir</a></p></div>
+<script src="/static/passkeys.js"></script><script>if(pkSoportado())document.getElementById("pk-add").hidden=false;</script>{% endblock %}

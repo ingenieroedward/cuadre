@@ -1,10 +1,38 @@
 {% extends "base.html" %}{% block t %}Entrar · Cuadre{% endblock %}{% block c %}
-<style>body{background:radial-gradient(1000px 600px at 20% -10%,#b45cff55,transparent),radial-gradient(900px 600px at 110% 10%,#6a05b355,transparent),var(--bg);min-height:100vh}
-.auth{max-width:400px;margin:7vh auto 0}.auth .logo{justify-content:center;font-size:34px;margin:0 0 6px}.auth .logo i{width:56px;height:56px;border-radius:18px;font-size:32px}
-.auth p.s{text-align:center;color:var(--mut);margin:0 0 22px}.auth .card{padding:24px;box-shadow:0 20px 50px rgba(80,10,150,.18)}
-.auth form{display:grid;gap:14px}.auth button{width:100%;padding:13px;font-size:16px}.pw{position:relative}.pw input{width:100%;padding-right:48px}
-.pw b{position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;padding:8px 10px;font-size:18px;user-select:none}</style>
-<div class="auth"><div class="logo"><i>C</i>Cuadre</div><p class="s">Las cuentas de la familia, claras</p>
-<div class="card"><form method="post"><label>Usuario<input name="username" autocomplete="username" autocapitalize="none" autofocus required></label>
+<style>
+main{max-width:none!important;padding:0!important;margin:0}
+.login{min-height:100vh;display:grid;grid-template-columns:1.05fr 1fr}
+.brand{position:relative;overflow:hidden;color:#fff;padding:56px 56px 48px;display:flex;flex-direction:column;justify-content:space-between;
+  background:radial-gradient(900px 500px at 15% 0%,#c066ff 0,transparent 60%),radial-gradient(700px 500px at 100% 100%,#4a0494 0,transparent 60%),linear-gradient(160deg,#7a08c8,#4b0792)}
+.brand:before,.brand:after{content:"";position:absolute;border-radius:50%;background:#fff;opacity:.07}
+.brand:before{width:420px;height:420px;right:-140px;top:-120px}.brand:after{width:260px;height:260px;left:-80px;bottom:-60px}
+.brand .lg{display:flex;align-items:center;gap:12px;font-weight:800;font-size:26px;letter-spacing:-.5px;position:relative}
+.brand .lg i{width:46px;height:46px;border-radius:15px;background:#fff;color:#820ad1;display:grid;place-items:center;font-style:normal;font-size:26px}
+.brand h2{font-size:42px;line-height:1.08;letter-spacing:-1.5px;margin:0 0 22px;color:#fff;position:relative}
+.brand ul{list-style:none;padding:0;margin:0;display:grid;gap:14px;position:relative}
+.brand li{display:flex;gap:12px;align-items:center;font-size:16px;opacity:.95}.brand li b{width:38px;height:38px;border-radius:12px;background:#ffffff26;display:grid;place-items:center;font-size:19px}
+.brand small{opacity:.7;position:relative}
+.form{display:flex;align-items:center;justify-content:center;padding:32px 24px}
+.box{width:100%;max-width:380px}.box h1{font-size:30px;margin:0 0 6px;letter-spacing:-.8px}.box p.s{color:var(--mut);margin:0 0 24px}
+.pkbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:15px;font-size:16px;border-radius:14px;
+  background:linear-gradient(135deg,#820ad1,#a24df0);box-shadow:0 10px 26px rgba(130,10,209,.35)}
+.pkbtn span{font-size:21px}
+.or{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:13px;margin:22px 0}.or:before,.or:after{content:"";flex:1;height:1px;background:var(--bd)}
+.box form{display:grid;gap:14px}.box label{font-size:13px}.box input{width:100%;padding:13px 14px;font-size:16px}
+.box .go{width:100%;padding:13px;font-size:16px;background:var(--soft);color:var(--pri)}
+.pw{position:relative}.pw input{padding-right:50px}.pw b{position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;padding:8px 10px;font-size:18px;user-select:none}
+#pk-msg{color:var(--bad);font-weight:600;margin:10px 0 0;text-align:center;min-height:20px}
+.mini{display:none}
+@media(max-width:860px){.login{grid-template-columns:1fr}.brand{padding:34px 24px 30px}.brand h2{font-size:28px;margin-bottom:0}.brand ul,.brand small{display:none}.brand .lg{margin-bottom:18px}.form{padding:26px 20px 40px;align-items:flex-start}}
+</style>
+<div class="login">
+<section class="brand"><div class="lg"><i>C</i>Cuadre</div>
+<div><h2>Las cuentas de la familia, claras.</h2><ul><li><b>📄</b>Sube tus extractos y listo</li><li><b>🔔</b>Avisos antes de cada pago</li><li><b>👨‍👩‍👧</b>Todos en la misma página</li></ul></div>
+<small>Tus datos viven en tu propio servidor.</small></section>
+<section class="form"><div class="box"><h1>Hola de nuevo 👋</h1><p class="s">Entra para ver cómo van las cuentas.</p>
+<div id="pk" hidden><button class="pkbtn" type="button" onclick="entrarConPasskey()"><span>🔐</span>Entrar con passkey</button>
+<p id="pk-msg"></p><div class="or">o con tu clave</div></div>
+<form method="post"><label>Usuario<input name="username" autocomplete="username webauthn" autocapitalize="none" autofocus required></label>
 <label>Clave<span class="pw"><input id="p" name="password" type="password" autocomplete="current-password" required><b onclick="p.type=p.type=='password'?'text':'password'">👁</b></span></label>
-<button>Entrar</button></form></div></div>{% endblock %}
+<button class="go">Entrar con clave</button></form></div></section></div>
+<script src="/static/passkeys.js"></script><script>if(pkSoportado())document.getElementById("pk").hidden=false;</script>{% endblock %}

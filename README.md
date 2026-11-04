@@ -17,6 +17,7 @@ Cada persona cambia su clave en **Yo → Mi cuenta**. El administrador restablec
 - En **Avisos**, pulsa "Activar avisos" en cada celular. iPhone: Safari → Compartir → *Añadir a pantalla de inicio*, abrir desde ahí.
 - Tarjeta: 3 días antes, 1 día antes y el día del límite (se lee del extracto de la tarjeta).
 - Recordatorios mensuales de la familia, recordatorio de subir extractos, y presupuestos por categoría (80 % y 100 %).
+- Passkeys: crea una en **Yo → Mi cuenta** (huella, Face ID o PIN) y entra sin clave. Funcionan en el dominio con HTTPS donde las creaste.
 - Zona horaria: `TZ` (por defecto America/Bogota).
 
 ## Local
