@@ -8,9 +8,7 @@ def defaults(nombre):
     n = (nombre or "").lower()
     if any(k in n for k in ("nequi", "daviplata", "dale", "movii", "bre-b")):
         return "bajo_monto", 1
-    if n.strip() == "nu" or n.startswith("nu "):
-        return "ahorros", 1          # el extracto de Nu muestra "Impuesto del 4x1000 $0,00"
-    return "ahorros", 0
+    return "ahorros", 0              # por defecto paga 4x1000; la persona la marca como exenta si lo está
 
 
 def asegurar(c, user_id, nombre):

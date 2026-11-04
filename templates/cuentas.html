@@ -12,7 +12,7 @@
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><span class="pill">{{tipos[q.tipo]}}</span>
 {% if q.exenta %}<span class="pill ok">{{ico('check',13)}}Exenta de 4x1000</span>{% else %}<span class="pill warn">Paga 4x1000</span>{% endif %}<span class="pill" style="background:var(--sf2);color:var(--mu)">{{x.movs}} {{'movimiento' if x.movs==1 else 'movimientos'}}</span></div>
 {% if not q.exenta and x.salidas %}<div class="sub" style="margin-top:10px">Este mes salieron {{x.salidas|cop}}: 4x1000 estimado <b>{{x.gmf|cop}}</b>.</div>{% endif %}
-<div style="display:flex;gap:8px;margin-top:12px"><button class="line" type="button" onclick='abrirCuenta({{ {"id":q.id,"nombre":q.nombre,"entidad":q.entidad,"tipo":q.tipo,"exenta":q.exenta,"ultimos4":q.ultimos4}|tojson|forceescape }})'>Editar</button>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="line" type="button" data-c='{{ {"id":q.id,"nombre":q.nombre,"entidad":q.entidad,"tipo":q.tipo,"exenta":q.exenta,"ultimos4":q.ultimos4}|tojson|forceescape }}' onclick="abrirCuenta(JSON.parse(this.dataset.c))">Editar</button>
 <form method="post" action="/cuentas/{{q.id}}/borrar" onsubmit="return confirm('{{'Tiene historial: se archivará y sus movimientos se conservan.' if x.movs else 'Se eliminará la cuenta.'}} ¿Continuar?')"><button class="line del">Quitar</button></form></div></div>
 {% else %}<div class="card empty">{{ico('wallet',32)}}<div style="margin-bottom:10px">Aún no tienes cuentas. Se crean solas al subir un extracto, o agrégalas aquí.</div><button onclick="abrirCuenta()">Agregar una cuenta</button></div>{% endfor %}</div>
 <dialog id="dcuenta"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px" id="dc-t">Nueva cuenta</h2><button class="ghost" type="button" onclick="dcuenta.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
@@ -26,9 +26,12 @@
 <label class="f" style="flex-direction:row;align-items:center;gap:10px;color:var(--tx);font-size:14px;font-weight:600"><input type="checkbox" name="exenta" value="1" id="dc-x" style="width:20px;height:20px;padding:0">Esta cuenta está exenta del 4x1000</label>
 <button style="justify-content:center" id="dc-b">Guardar cuenta</button></form></dialog>
 <script>
-function abrirCuenta(c){const f=document.getElementById("dc-f");
- if(c){f.action="/cuentas/"+c.id;dc_t.textContent="Editar cuenta";dc_n.value=c.nombre;dc_e.value=c.entidad||"";dc_4.value=c.ultimos4||"";dc_t2.value=c.tipo;dc_x.checked=!!c.exenta;dc_p.style.display="none";}
- else{f.action="/cuentas";dc_t.textContent="Nueva cuenta";f.reset();dc_p.style.display="";}
- dcuenta.showModal();}
-document.addEventListener("change",e=>{if(e.target.id==="dc-t2"&&!dc_f_edit())dc_x.checked=(e.target.value==="bajo_monto")});function dc_f_edit(){return document.getElementById("dc-f").action.split("/").length>4||/\/cuentas\/\d+$/.test(document.getElementById("dc-f").action)}
+const $=id=>document.getElementById(id);
+function abrirCuenta(c){
+ const f=$("dc-f");
+ if(c){f.action="/cuentas/"+c.id;$("dc-t").textContent="Editar cuenta";$("dc-n").value=c.nombre;$("dc-e").value=c.entidad||"";$("dc-4").value=c.ultimos4||"";
+  $("dc-t2").value=c.tipo;$("dc-x").checked=!!c.exenta;$("dc-p").style.display="none";f.dataset.editando="1";}
+ else{f.reset();f.action="/cuentas";$("dc-t").textContent="Nueva cuenta";$("dc-p").style.display="";f.dataset.editando="";}
+ $("dcuenta").showModal();}
+document.addEventListener("change",e=>{if(e.target.id==="dc-t2"&&!$("dc-f").dataset.editando)$("dc-x").checked=(e.target.value==="bajo_monto")});
 </script>{% endblock %}

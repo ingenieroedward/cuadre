@@ -61,7 +61,33 @@ def cronograma(P, n, cuota, i, primera):
     return rows
 
 
+def _g(d, k, defecto=None):
+    try:
+        v = d[k]
+    except (KeyError, IndexError):
+        return defecto
+    return defecto if v is None else v
+
+
 def estado(d, pagos, hoy=None):
+    """Las compras a cuotas de la tarjeta se actualizan solas con el extracto (cuota facturada y lo que resta)."""
+    if _g(d, "origen", "manual") != "tarjeta":
+        return _estado(d, pagos, hoy)
+    k = int(_g(d, "cuotas_fact", 0))
+    sint = [{"monto": float(d["cuota"] or 0) * k, "tipo": "cuota"}] if k else []
+    e = _estado(d, sint, hoy)
+    rest = _g(d, "restante")
+    if rest is not None:
+        e["saldo"] = rest
+        e["pagada"] = rest <= 0.005
+        e["pct"] = 0 if e["P"] <= 0 else max(0.0, min(1.0, 1 - rest / e["P"]))
+        if e["pagada"]:
+            e["proxima"], e["dias"], e["proxima_monto"] = None, None, None
+    e["automatica"] = True
+    return e
+
+
+def _estado(d, pagos, hoy=None):
     """Todo lo que la pantalla necesita saber de una deuda."""
     hoy = hoy or date.today()
     P, n, cuota, ea, i = parametros(d)
@@ -133,7 +159,7 @@ def estrategia(deudas, extra):
 def detectar(c, desc, monto):
     """¿Este movimiento es el pago de alguna deuda registrada? Devuelve la fila de la deuda o None."""
     d = (desc or "").lower()
-    for x in c.execute("SELECT * FROM deudas WHERE activo=1").fetchall():
+    for x in c.execute("SELECT * FROM deudas WHERE activo=1 AND COALESCE(origen,'manual')!='tarjeta'").fetchall():
         clave = (x["palabra_clave"] or x["nombre"] or "").lower().strip()
         if not clave or clave not in d:
             continue
@@ -154,3 +180,30 @@ def registrar_automatico(c, desc, monto, fecha, mov_id):
     if x["direccion"] == "debo":
         c.execute("UPDATE movs SET categoria='Deudas' WHERE id=?", (mov_id,))
     return x["nombre"]
+
+
+def sincronizar_tarjeta(c, user_id, banco, movs, fecha_limite):
+    """Crea o actualiza una deuda por cada compra a cuotas del extracto de la tarjeta. Devuelve (nuevas, actualizadas)."""
+    import hashlib
+    nuevas = actualizadas = 0
+    for m in movs:
+        if not m.get("cuotas"):
+            continue
+        k, n = m["cuotas"]
+        total = abs(m["monto"])
+        clave = hashlib.sha1(f"{user_id}|{banco}|{m['fecha']}|{m['descripcion']}|{total:.2f}".encode()).hexdigest()
+        mv = m.get("tasa_mv") or 0.0
+        ea = ((1 + mv / 100) ** 12 - 1) * 100 if mv > 0 else 0.0
+        primera = add_months(date.fromisoformat(fecha_limite), -(k - 1)).isoformat() if fecha_limite else m["fecha"]
+        ya = c.execute("SELECT id FROM deudas WHERE clave_ext=?", (clave,)).fetchone()
+        if ya:
+            c.execute("UPDATE deudas SET cuotas_fact=?, restante=?, cuota=? WHERE id=?",
+                      (k, m.get("restante"), m["valor_cuota"], ya["id"]))
+            actualizadas += 1
+        else:
+            c.execute("""INSERT INTO deudas(user_id,nombre,tipo,direccion,principal,n_cuotas,cuota,tasa_ea,primera_cuota,palabra_clave,
+                origen,cuotas_fact,restante,tasa_mv,clave_ext) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (user_id, m["descripcion"], "Tarjeta a cuotas", "debo", total, n, m["valor_cuota"], ea, primera, "", "tarjeta",
+                       k, m.get("restante"), mv, clave))
+            nuevas += 1
+    return nuevas, actualizadas

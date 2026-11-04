@@ -172,6 +172,9 @@ def info_tarjeta(todo):
     if not fecha:
         return None
     return {"fecha_limite": fecha,
+            "cupo": _dinero(r"cupo definido\s*\$([\d.]+,\d{2})", todo),
+            "usado": _dinero(r"Usado\s*\$([\d.]+,\d{2})", todo),
+            "disponible": _dinero(r"Disponible\s*\$([\d.]+,\d{2})", todo),
             "pago_minimo": _dinero(r"PAGO M[IÍ]NIMO\s*\$([\d.]+,\d{2})", todo),
             "a_pagar": _dinero(r"Deuda a pagar este mes\s*\$([\d.]+,\d{2})", todo),
             "deuda_total": _dinero(r"DEUDA TOTAL[^$]*\$([\d.]+,\d{2})", todo)}
@@ -207,7 +210,15 @@ def _leer_tarjeta(todo, reglas):
             else:
                 monto, cat = -valor, categoria(desc, reglas)
             if valor:
-                movs.append({"fecha": fecha, "descripcion": desc[:200], "monto": monto, "categoria": cat})
+                extra = {}
+                resto = texto[len(texto.split(dinero[0])[0]):]
+                mc = re.search(r"(\d+)\s+de\s+(\d+)", resto)
+                if mc and int(mc[2]) > 1 and cat != "Pago de tarjeta" and monto < 0 and len(dinero) >= 2:
+                    mt = re.search(r"(\d+[.,]\d+)\s*%", resto)
+                    extra = {"cuotas": (int(mc[1]), int(mc[2])), "valor_cuota": abs(a_numero(dinero[1]) or 0),
+                             "tasa_mv": float(mt[1].replace(",", ".")) if mt else 0.0,
+                             "restante": abs(a_numero(dinero[-1]) or 0) if len(dinero) >= 5 else None}
+                movs.append({"fecha": fecha, "descripcion": desc[:200], "monto": monto, "categoria": cat, **extra})
         i = j
     # una reversión que anula una compra igual del mismo extracto: ambas quedan en "Reversado"
     for r in [x for x in movs if x["categoria"] == "Devoluciones"]:

@@ -84,6 +84,7 @@ tpl.env.filters["cop"] = avisos.cop
 tpl.env.filters["ico"] = icons.cat
 tpl.env.filters["color"] = icons.color
 tpl.env.filters["en_meses"] = lambda n: f"{MES_ES[deudas.add_months(date.today(), int(n)).month - 1][:3]} {deudas.add_months(date.today(), int(n)).year}"
+tpl.env.filters["todate"] = lambda s: date.fromisoformat(s)
 tpl.env.filters["inicial"] = lambda t: (t or "?").strip()[:1].upper()
 MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 DIA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -156,10 +157,17 @@ def init():
     c.execute("""CREATE TABLE IF NOT EXISTS capturas(id INTEGER PRIMARY KEY, user_id INTEGER, fuente TEXT, texto TEXT, estado TEXT,
         monto REAL, descripcion TEXT, fecha TEXT, banco TEXT, mov_id INTEGER, creado TEXT)""")
     for tabla, col, defin in [("movs", "estado", "TEXT DEFAULT 'confirmado'"), ("movs", "fuente", "TEXT DEFAULT 'extracto'"),
-                              ("users", "token", "TEXT")]:
+                              ("users", "token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
+                              ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
+                              ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
+                              ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
+    # Corrección única: antes se suponía que Nu estaba exenta; Nu sí cobra 4x1000. La persona puede cambiarlo en Cuentas.
+    if not c.execute("SELECT 1 FROM config WHERE clave='mig_nu_gmf'").fetchone():
+        c.execute("UPDATE cuentas SET exenta=0 WHERE lower(nombre)='nu' AND tipo='ahorros'")
+        c.execute("INSERT INTO config(clave,valor) VALUES('mig_nu_gmf','1')")
     c.commit()
     # Compatibilidad: si defines ADMIN_PASSWORD se crea el primer admin al arrancar.
     # Si no, la primera visita muestra la pantalla "Crear administrador" (recomendado).
@@ -508,10 +516,15 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                 pass  # duplicado: ya estaba cargado
         notas = []
         if info and "fecha_limite" in info:
-            c.execute("""INSERT INTO pagos_tarjeta(user_id,banco,fecha_limite,pago_minimo,a_pagar,deuda_total)
-                VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,banco,fecha_limite) DO UPDATE SET
-                pago_minimo=excluded.pago_minimo, a_pagar=excluded.a_pagar, deuda_total=excluded.deuda_total""",
-                      (persona, banco, info["fecha_limite"], info["pago_minimo"], info["a_pagar"], info["deuda_total"]))
+            c.execute("""INSERT INTO pagos_tarjeta(user_id,banco,fecha_limite,pago_minimo,a_pagar,deuda_total,cupo,usado,disponible)
+                VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,banco,fecha_limite) DO UPDATE SET
+                pago_minimo=excluded.pago_minimo, a_pagar=excluded.a_pagar, deuda_total=excluded.deuda_total,
+                cupo=excluded.cupo, usado=excluded.usado, disponible=excluded.disponible""",
+                      (persona, banco, info["fecha_limite"], info["pago_minimo"], info["a_pagar"], info["deuda_total"],
+                       info.get("cupo"), info.get("usado"), info.get("disponible")))
+            nv, ac = deudas.sincronizar_tarjeta(c, persona, banco, movs, info["fecha_limite"])
+            if nv or ac:
+                notas.append(("ok", f"Compras a cuotas: {nv} nueva(s) y {ac} actualizada(s) en Deudas."))
             notas.append(("warn", f"Pago mínimo {avisos.cop(info['pago_minimo'] or 0)}, vence el {info['fecha_limite']}. Te avisaremos antes."))
         if info and info.get("final") is not None and info.get("cierre"):
             saldos.guardar(c, persona, banco, info["cierre"], info["final"], saldos.CORTE_EXTRACTO, "extracto")
@@ -947,15 +960,35 @@ def cargar_deudas(c):
     return out
 
 
+def cargar_tarjetas(c, todas):
+    """Una línea por tarjeta (el último extracto) con sus compras a cuotas."""
+    out = []
+    for t in c.execute("""SELECT p.*, u.nombre AS responsable FROM pagos_tarjeta p JOIN users u ON u.id=p.user_id
+        WHERE p.id=(SELECT id FROM pagos_tarjeta x WHERE x.user_id=p.user_id AND x.banco=p.banco ORDER BY x.fecha_limite DESC, x.id DESC LIMIT 1)
+        ORDER BY u.nombre, p.banco""").fetchall():
+        cuotas = [x for x in todas if x["d"]["origen"] == "tarjeta" and x["d"]["user_id"] == t["user_id"]
+                  and not x["e"]["pagada"]]
+        dias = (date.fromisoformat(t["fecha_limite"]) - date.today()).days
+        uso = (t["usado"] / t["cupo"]) if t["cupo"] and t["usado"] is not None else None
+        out.append({"t": t, "cuotas": cuotas, "dias": dias, "uso": uso})
+    return out
+
+
 def resumen_deudas(c):
     todas = cargar_deudas(c)
-    debo = [x for x in todas if x["d"]["direccion"] == "debo" and not x["e"]["pagada"]]
-    if not todas:
+    tarjetas = cargar_tarjetas(c, todas)
+    if not todas and not tarjetas:
         return None
+    manual = [x for x in todas if x["d"]["origen"] != "tarjeta"]
+    debo = [x for x in manual if x["d"]["direccion"] == "debo" and not x["e"]["pagada"]]
+    tarj = [x for x in tarjetas if not x["t"]["pagado"]]
     prox = sorted([x for x in debo if x["e"]["proxima"]], key=lambda x: x["e"]["proxima"])
-    return {"n": len(debo), "saldo": sum(x["e"]["saldo"] for x in debo), "cuotas": sum(x["e"]["cuota"] for x in debo),
+    return {"n": len(debo) + len(tarj),
+            "saldo": sum(x["e"]["saldo"] for x in debo) + sum((x["t"]["deuda_total"] or 0) for x in tarj),
+            "cuotas": sum(x["e"]["cuota"] for x in debo) + sum((x["t"]["a_pagar"] or x["t"]["pago_minimo"] or 0) for x in tarj),
+            "tarjeta": min(tarj, key=lambda x: x["t"]["fecha_limite"]) if tarj else None,
             "proxima": prox[0] if prox else None,
-            "me_deben": sum(x["e"]["saldo"] for x in todas if x["d"]["direccion"] == "me_deben" and not x["e"]["pagada"])}
+            "me_deben": sum(x["e"]["saldo"] for x in manual if x["d"]["direccion"] == "me_deben" and not x["e"]["pagada"])}
 
 
 @app.get("/deudas")
@@ -963,9 +996,11 @@ def pagina_deudas(request: Request, extra: str = ""):
     u = user(request)
     c = db()
     todas = cargar_deudas(c)
+    tarjetas = cargar_tarjetas(c, todas)
     users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
     res = resumen_deudas(c)
     c.close()
+    todas = [x for x in todas if x["d"]["origen"] != "tarjeta"]
     debo = [x for x in todas if x["d"]["direccion"] == "debo"]
     activas = [x for x in debo if not x["e"]["pagada"]]
     try:
@@ -977,7 +1012,7 @@ def pagina_deudas(request: Request, extra: str = ""):
         est = deudas.estrategia([{"nombre": x["d"]["nombre"], "saldo": x["e"]["saldo"], "i": x["e"]["i"], "ea": x["e"]["ea"],
                                   "cuota": x["e"]["cuota"]} for x in activas], extra_v)
     return render(request, "deudas.html", u=u, debo=debo, me_deben=[x for x in todas if x["d"]["direccion"] == "me_deben"],
-                  res=res, est=est, extra=extra_v, usuarios_d=users, hoy=date.today().isoformat(),
+                  res=res, est=est, extra=extra_v, tarjetas=tarjetas, usuarios_d=users, hoy=date.today().isoformat(),
                   interes_total=sum(x["e"]["int_restante"] for x in activas))
 
 

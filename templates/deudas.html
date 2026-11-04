@@ -3,8 +3,11 @@
 <div class="stack">
 {% if res and res.n %}<div class="g2 w"><div class="card hero"><div class="lbl">Lo que debes en total</div><div class="big">{{res.saldo|cop}}</div>
 <div class="two"><div><small>{{ico('clock',15)}} Cuotas al mes</small><b>{{res.cuotas|cop}}</b></div><div><small>{{ico('percent',15)}} Intereses por pagar</small><b>{{interes_total|cop}}</b></div></div></div>
-<div class="card"><div class="hd"><h2>{{ico('calendar',19)}}Próxima cuota</h2></div>
-{% if res.proxima %}{% set p=res.proxima %}<div class="li" style="padding-left:0"><span class="chip">{{ico('bank',18)}}</span><div class="t"><b>{{p.d.nombre}}</b><small>{{p.e.proxima.strftime('%d/%m/%Y')}} · {{'hoy' if p.e.dias==0 else 'en %d día(s)'|format(p.e.dias) if p.e.dias>0 else 'vencida hace %d día(s)'|format(-p.e.dias)}}</small></div><div class="n b">{{p.e.proxima_monto|cop}}</div></div>{% endif %}
+<div class="card"><div class="hd"><h2>{{ico('calendar',19)}}Próximo pago</h2></div>
+{% set tj=res.tarjeta %}{% set p=res.proxima %}
+{% if p and (not tj or p.e.proxima <= tj.t.fecha_limite|todate) %}<div class="li" style="padding-left:0"><span class="chip">{{ico('bank',18)}}</span><div class="t"><b>{{p.d.nombre}}</b><small>{{p.e.proxima.strftime('%d/%m/%Y')}} · {{'hoy' if p.e.dias==0 else 'en %d día(s)'|format(p.e.dias) if p.e.dias>0 else 'vencida hace %d día(s)'|format(-p.e.dias)}}</small></div><div class="n b">{{p.e.proxima_monto|cop}}</div></div>
+{% elif tj %}<div class="li" style="padding-left:0"><span class="chip" style="--c:#d6336c">{{ico('card',18)}}</span><div class="t"><b>Tarjeta {{tj.t.banco}}</b><small>{{tj.t.fecha_limite[8:]}}/{{tj.t.fecha_limite[5:7]}}/{{tj.t.fecha_limite[:4]}} · {{'hoy' if tj.dias==0 else 'en %d día(s)'|format(tj.dias) if tj.dias>0 else 'vencida hace %d día(s)'|format(-tj.dias)}}</small></div><div class="n b">{{(tj.t.a_pagar or tj.t.pago_minimo or 0)|cop}}</div></div>{% endif %}
+{% if res.me_deben %}<div class="sub" style="margin-top:8px">Además te deben {{res.me_deben|cop}}.</div>{% endif %}</div>{% endif %}
 {% if res.me_deben %}<div class="sub" style="margin-top:8px">Además te deben {{res.me_deben|cop}}.</div>{% endif %}</div></div>{% endif %}
 
 {% macro tarjeta(x) %}{% set d=x.d %}{% set e=x.e %}
@@ -19,8 +22,21 @@
 <span class="pill {{'warn' if e.dias is not none and e.dias<=3 else ''}}">{% if e.pagada %}Pagada{% elif e.dias is none %}—{% else %}{{ico('calendar',14)}} {{e.proxima.strftime('%d/%m')}}{% endif %}</span>
 {% if not e.pagada %}<button class="soft" type="button" onclick="pagar({{d.id}},{{d.nombre|tojson|forceescape}},{{(e.proxima_monto or e.cuota)|round(2)}})">{{'Registrar pago' if d.direccion=='debo' else 'Registrar cobro'}}</button>{% endif %}</div></div>{% endmacro %}
 
+{% if tarjetas %}<div><div class="hd"><h2>{{ico('card',19)}}Tarjetas de crédito</h2></div><div class="stack">
+{% for x in tarjetas %}{% set t=x.t %}<div class="card">
+<div style="display:flex;gap:12px;align-items:center"><span class="chip" style="--c:{{'#868e96' if t.pagado else '#d6336c'}}">{{ico('card',18)}}</span>
+<div style="flex:1;min-width:0"><b style="font-size:16px">Tarjeta {{t.banco}}</b><div class="sub">{{t.responsable}}</div></div>
+<div class="n"><b style="font-size:18px">{{(t.deuda_total or 0)|cop}}</b><div class="sub">{{'pagada' if t.pagado else 'deuda total'}}</div></div></div>
+{% if x.uso is not none %}<div class="bar {{'bad' if x.uso>=0.9 else 'warn' if x.uso>=0.7 else ''}}" style="margin:14px 0 6px;--c:#d6336c"><i style="width:{{[(x.uso*100)|round|int,100]|min}}%"></i></div>
+<div class="sub">Usas {{t.usado|cop}} de tu cupo de {{t.cupo|cop}} ({{(x.uso*100)|round|int}}%) · disponible {{(t.disponible or 0)|cop}}</div>{% endif %}
+<div class="li" style="padding:14px 0 0;border-top:0;gap:10px;flex-wrap:wrap"><div class="t" style="min-width:200px"><div class="sub">Pago mínimo <b style="color:var(--tx)">{{(t.pago_minimo or 0)|cop}}</b></div>{% if t.a_pagar %}<div class="sub">Sin pagar intereses <b style="color:var(--tx)">{{t.a_pagar|cop}}</b></div>{% endif %}</div>
+<span class="pill {{'bad' if x.dias<0 and not t.pagado else 'warn' if x.dias<=3 and not t.pagado else ''}}">{{ico('calendar',14)}} {{t.fecha_limite[8:]}}/{{t.fecha_limite[5:7]}}</span>
+<form method="post" action="/avisos/pago/{{t.id}}/pagado"><button class="{{'ghost' if t.pagado else 'soft'}}">{% if t.pagado %}{{ico('check',16)}}Pagada{% else %}Ya pagué{% endif %}</button></form></div>
+{% if x.cuotas %}<div style="border-top:1px solid var(--ln);margin-top:12px;padding-top:6px"><div class="sub" style="padding:6px 0"><b>Compras a cuotas</b> · se actualizan solas con cada extracto</div>
+{% for q in x.cuotas %}<a class="li" href="/deudas/{{q.d.id}}" style="color:inherit;padding:8px 0"><span class="chip s" style="--c:#d6336c">{{ico('package',16)}}</span>
+<div class="t"><b>{{q.d.nombre}}</b><small>{{q.d.cuotas_fact}} de {{q.d.n_cuotas}} cuotas · {{q.e.cuota|cop}}/mes · quedan {{q.e.saldo|cop}}</small></div>{{ico('chevr',16)}}</a>{% endfor %}</div>{% endif %}</div>{% endfor %}</div></div>{% endif %}
 <div><div class="hd"><h2>{{ico('bank',19)}}Lo que debo</h2></div><div class="stack">{% for x in debo %}{{tarjeta(x)}}{% else %}
-<div class="card empty">{{ico('bank',32)}}<div style="margin-bottom:10px">Aún no has registrado deudas</div><button onclick="dnueva.showModal()">Registrar la primera</button></div>{% endfor %}</div></div>
+<div class="card empty">{{ico('bank',32)}}<div style="margin-bottom:10px">Aún no has registrado deudas{% if tarjetas %} fuera de tus tarjetas{% endif %}</div><button onclick="dnueva.showModal()">Registrar {{'otra' if tarjetas else 'la primera'}}</button></div>{% endfor %}</div></div>
 {% if me_deben %}<div><div class="hd"><h2>{{ico('users',19)}}Me deben</h2></div><div class="stack">{% for x in me_deben %}{{tarjeta(x)}}{% endfor %}</div></div>{% endif %}
 
 {% if est and debo|length %}<div class="card"><div class="hd"><h2>{{ico('target',19)}}¿Cómo pagar más rápido?</h2></div>

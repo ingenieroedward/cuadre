@@ -143,7 +143,7 @@ def revisar(db, pem):
             avisar(db, pem, f"tarjeta:{p['id']}:{dias}", f"Tu tarjeta {p['banco']} {quedan}", cuerpo, [p["user_id"]])
 
     c = db()
-    deus = c.execute("SELECT * FROM deudas WHERE activo=1").fetchall()
+    deus = c.execute("SELECT * FROM deudas WHERE activo=1 AND COALESCE(origen,'manual')!='tarjeta'").fetchall()
     for d in deus:                                            # 1b) cuotas de deudas
         pagos = c.execute("SELECT monto,tipo FROM deuda_pagos WHERE deuda_id=?", (d["id"],)).fetchall()
         e = deudas.estado(d, pagos, hoy)
