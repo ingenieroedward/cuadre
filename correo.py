@@ -65,6 +65,9 @@ def procesar_mensaje(c, raw: bytes):
         fecha = parsedate_to_datetime(msg.get("Date")).astimezone(avisos.TZ).date()
     except Exception:
         fecha = None
+    max_dias = int(os.environ.get("IMAP_MAX_DIAS", 10))
+    if fecha and (avisos.ahora().date() - fecha).days > max_dias:
+        return None          # correo viejo (por ejemplo, un filtro aplicado al historial): no lo importamos
     return captura.procesar(c, usuario["id"], cuerpo[:1800], asunto, banco, "correo", fecha_defecto=fecha)
 
 
