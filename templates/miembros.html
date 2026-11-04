@@ -1,8 +1,17 @@
 {% extends "base.html" %}{% block t %}Familia · Cuadre{% endblock %}{% block c %}
 <div class="ph"><div><h1>Familia</h1><p>{{users|length}} {{'persona' if users|length==1 else 'personas'}} con acceso</p></div></div>
-<div class="stack"><div class="card flush">{% for x in users %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small>{{x.username}}</small></div>
-<span class="pill {{'' if x.admin else 'warn'}}">{{'Administrador' if x.admin else 'Miembro'}}</span>
-{% if u.admin %}<form method="post" action="/miembros/{{x.id}}/clave" style="display:flex;gap:6px"><input name="password" type="password" minlength="8" placeholder="Nueva clave" required style="width:140px;padding:7px 10px"><button class="soft" title="Restablecer clave">{{ico('lock',16)}}</button></form>{% endif %}</div>{% endfor %}</div>
-{% if u.admin %}<div class="card"><div class="hd"><h2>{{ico('plus',19)}}Agregar a la familia</h2></div><form class="frm row" method="post">
-<label class="f">Nombre<input name="nombre" required></label><label class="f">Usuario<input name="username" autocapitalize="none" required></label>
-<label class="f">Clave (mínimo 8)<input name="password" type="password" minlength="8" required></label><button>Agregar</button></form></div>{% endif %}</div>{% endblock %}
+<div class="stack">
+<div class="card flush">{% for x in users %}<div class="li"><span class="av">{{x.nombre|inicial}}</span>
+<div class="t"><b>{{x.nombre}}</b><small>@{{x.username}}</small></div>
+<span class="pill {{'' if x.admin else 'warn'}}">{{'Admin' if x.admin else 'Miembro'}}</span>
+{% if u.admin %}<button class="ghost" type="button" title="Restablecer clave" aria-label="Restablecer clave de {{x.nombre}}" onclick="clave({{x.id}},{{x.nombre|tojson|forceescape}})">{{ico('lock',18)}}</button>{% endif %}</div>{% endfor %}</div>
+{% if u.admin %}<div class="card"><div class="hd"><h2>{{ico('plus',19)}}Agregar a la familia</h2></div><form class="frm" method="post">
+<div class="frm row2"><label class="f">Nombre<input name="nombre" required autocomplete="off"></label><label class="f">Usuario<input name="username" autocapitalize="none" autocomplete="off" required></label></div>
+<label class="f">Clave (mínimo 8)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+<button style="justify-content:center">{{ico('plus',17)}}Agregar</button></form>
+<p class="sub" style="margin-top:10px">Cada persona puede cambiar su clave y crear su passkey desde su perfil.</p></div>{% endif %}</div>
+{% if u.admin %}<dialog id="dclave"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:17px" id="dclave-t">Restablecer clave</h2>
+<button class="ghost" type="button" onclick="dclave.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" id="dclave-f"><label class="f">Clave nueva (mínimo 8)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+<button style="justify-content:center">Guardar clave</button></form></dialog>
+<script>function clave(id,n){document.getElementById("dclave-f").action="/miembros/"+id+"/clave";document.getElementById("dclave-t").textContent="Clave de "+n;dclave.showModal();}</script>{% endif %}{% endblock %}
