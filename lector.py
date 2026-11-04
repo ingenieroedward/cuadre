@@ -147,7 +147,7 @@ def leer_pdf(datos: bytes, clave: str, tipo: str, reglas):
 
 
 def _dinero(rx, texto):
-    m = re.search(rx, texto, re.I)
+    m = re.search(rx, texto, re.I | re.S)
     return a_numero(m[1]) if m else None
 
 
@@ -166,18 +166,22 @@ def info_cuenta(todo):
 
 
 def info_tarjeta(todo):
-    """Fecha límite, pago mínimo y deuda del extracto de la tarjeta (para los recordatorios)."""
-    m = re.search(r"Fecha l[ií]mite de pago\s*(\d{1,2})\s+([A-Za-zñÑ]{3})[A-Za-zñÑ]*\s+(20\d{2})", todo, re.I)
+    """Resumen del extracto de la tarjeta. Tolerante: el valor puede venir pegado a su etiqueta o varias líneas después
+    (cuando el PDF entrega las columnas una tras otra: 'Fecha límite de pago  Fecha de corte ...  24 NOV 2026  04 NOV 2026')."""
+    t = re.sub(r"[ \t]+", " ", todo)
+    mes = r"([A-Za-zñÑ]{3})[A-Za-zñÑ]*\.?"
+    m = re.search(r"Fecha l[ií]mite de pago.{0,200}?(\d{1,2})\s+" + mes + r"\s+(20\d{2})", t, re.I | re.S)
     fecha = _fecha(int(m[3]), MESES.get(m[2].lower(), 0), int(m[1])) if m else None
     if not fecha:
         return None
+    din = r"\$\s*([\d.]+,\d{2})"
     return {"fecha_limite": fecha,
-            "cupo": _dinero(r"cupo definido\s*\$([\d.]+,\d{2})", todo),
-            "usado": _dinero(r"Usado\s*\$([\d.]+,\d{2})", todo),
-            "disponible": _dinero(r"Disponible\s*\$([\d.]+,\d{2})", todo),
-            "pago_minimo": _dinero(r"PAGO M[IÍ]NIMO\s*\$([\d.]+,\d{2})", todo),
-            "a_pagar": _dinero(r"Deuda a pagar este mes\s*\$([\d.]+,\d{2})", todo),
-            "deuda_total": _dinero(r"DEUDA TOTAL[^$]*\$([\d.]+,\d{2})", todo)}
+            "cupo": _dinero(r"cupo definido.{0,60}?" + din, t),
+            "usado": _dinero(r"\bUsado\b.{0,40}?" + din, t),
+            "disponible": _dinero(r"\bDisponible\b.{0,40}?" + din, t),
+            "pago_minimo": _dinero(r"PAGO M[IÍ]NIMO.{0,60}?" + din, t),
+            "a_pagar": _dinero(r"Deuda a pagar este mes.{0,60}?" + din, t),
+            "deuda_total": _dinero(r"DEUDA TOTAL.{0,100}?" + din, t)}
 
 
 def _mov_tarjeta(fecha, texto, reglas):

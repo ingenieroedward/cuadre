@@ -467,6 +467,10 @@ def export(request: Request, mes: str = "", persona: int = 0, cat: str = "", q: 
                              headers={"Content-Disposition": "attachment; filename=movimientos.csv"})
 
 
+def m_tipo_tarjeta(movs, info, tipo):
+    return tipo == "tarjeta" or any(x.get("origen") == "tarjeta" for x in movs)
+
+
 # ---------- Subir PDFs ----------
 @app.get("/subir")
 def subir_form(request: Request):
@@ -552,7 +556,9 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
         if concil:
             notas.append(("ok", f"{concil} movimientos que ya habías capturado quedaron confirmados por el extracto."))
         diag = ""
-        if not movs:
+        if m_tipo_tarjeta(movs, info, tipo) and not (info and "fecha_limite" in info):
+            notas.append(("bad", "No pude leer el resumen de la tarjeta (fecha límite, pago mínimo, deuda total). Abre «Ver cómo leí este PDF» y pásame el texto."))
+        if not movs or (m_tipo_tarjeta(movs, info, tipo) and not (info and "fecha_limite" in info)):
             try:
                 diag = lector.texto_pdf(datos, clave)[:7000]
             except Exception:
