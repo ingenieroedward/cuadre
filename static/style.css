@@ -177,3 +177,9 @@ th.n,td.n{text-align:right}th.c,td.c{text-align:center;width:1%}
 .solo-s{display:none}
 @media(max-width:560px){.solo-s{display:inline}.tcuotas th,.tcuotas td{padding:9px 6px;font-size:12.5px}.tcuotas th{font-size:10.5px}.tcuotas td:first-child,.tcuotas th:first-child{padding-left:10px}
  .tcuotas .pill{padding:1px 6px;font-size:10.5px}}
+
+/* títulos de sección con aire arriba y abajo */
+.sec-t{margin:18px 2px 14px;padding-top:6px}.sec-t h2{font-size:17px}
+.stack>*:first-child .sec-t,.sec-t:first-child{margin-top:4px}
+.stack .stack>*+*{margin-top:16px}
+@media(max-width:560px){.sec-t{margin:16px 2px 12px}}
