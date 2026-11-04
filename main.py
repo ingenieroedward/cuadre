@@ -165,9 +165,11 @@ def init():
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
     # Corrección única: antes se suponía que Nu estaba exenta; Nu sí cobra 4x1000. La persona puede cambiarlo en Cuentas.
-    if not c.execute("SELECT 1 FROM config WHERE clave='mig_nu_gmf'").fetchone():
-        c.execute("UPDATE cuentas SET exenta=0 WHERE lower(nombre)='nu' AND tipo='ahorros'")
-        c.execute("INSERT INTO config(clave,valor) VALUES('mig_nu_gmf','1')")
+    # Corrección única (la persona confirmó): Nu está exenta de 4x1000 y Nequi sí lo cobra.
+    if not c.execute("SELECT 1 FROM config WHERE clave='mig_gmf_v2'").fetchone():
+        c.execute("UPDATE cuentas SET exenta=1 WHERE lower(nombre)='nu' AND tipo='ahorros'")
+        c.execute("UPDATE cuentas SET exenta=0 WHERE lower(nombre)='nequi'")
+        c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('mig_gmf_v2','1')")
     c.commit()
     # Compatibilidad: si defines ADMIN_PASSWORD se crea el primer admin al arrancar.
     # Si no, la primera visita muestra la pantalla "Crear administrador" (recomendado).
