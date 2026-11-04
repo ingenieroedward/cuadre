@@ -28,6 +28,7 @@ CATEGORIAS_BASE = {
     "Salud": ["farmacia", "drogueria", "droguería", " eps ", "clinica", "clínica", "cruz verde"],
     "Servicios": ["claro", "movistar", "tigo", "enel", "epm", "vanti", "acueducto", "etb", "surtigas", "gases"],
     "Hogar": ["dollarcity", "homecenter", "ikea"],
+    "Deudas": [],
     "Intereses y cobros": ["interes", "interés", "cuota de manejo", "comision", "comisión"],
     "Ingresos": ["rendimiento", "nómina", "nomina", "salario"],
 }
@@ -160,7 +161,8 @@ def info_cuenta(todo):
     cierre = _fecha(int(m[3]), MESES.get(m[2].lower(), 0), int(m[1])) if m else None
     return {"entro": entro, "salio": salio, "cierre": cierre,
             "inicio": _dinero(r"Tu dinero al inicio del mes\s*\$([\d.]+,\d{2})", todo),
-            "final": _dinero(r"Tu dinero a final del mes\s*\$([\d.]+,\d{2})", todo)}
+            "final": _dinero(r"Tu dinero a final del mes\s*\$([\d.]+,\d{2})", todo),
+            "gmf": _dinero(r"Impuesto del 4x1000\s*\$([\d.]+,\d{2})", todo)}
 
 
 def info_tarjeta(todo):

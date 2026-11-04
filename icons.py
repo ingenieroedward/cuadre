@@ -44,6 +44,8 @@ P = {
  "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
  "moon": '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
  "monitor": '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
+ "bank": '<path d="M3 22h18"/><path d="M6 18v-7M10 18v-7M14 18v-7M18 18v-7"/><path d="M12 2 3 7h18z"/>',
+ "menu": '<path d="M4 6h16M4 12h16M4 18h16"/>',
  "chevl": '<path d="m15 18-6-6 6-6"/>',
  "chevr": '<path d="m9 18 6-6-6-6"/>',
  "logout": '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
@@ -65,14 +67,14 @@ def svg(nombre, size=20, cls=""):
 
 CATEGORIA = {"Comida": "utensils", "Supermercado": "cart", "Transporte": "bus", "Suscripciones": "tv", "Salud": "heart",
              "Servicios": "zap", "Hogar": "home", "Educación": "cap", "Compras en línea": "package",
-             "Intereses y cobros": "percent", "Ingresos": "cash", "Transferencias recibidas": "in",
+             "Intereses y cobros": "percent", "Deudas": "bank", "Ingresos": "cash", "Transferencias recibidas": "in",
              "Transferencias enviadas": "out", "Traslado propio": "repeat", "Pago de tarjeta": "card",
              "Reversado": "undo", "Devoluciones": "undo", "Arriendo": "key", "Ocio": "star", "Otros": "help"}
 
 
 COLOR = {"Comida": "#e8590c", "Supermercado": "#2f9e44", "Transporte": "#1971c2", "Suscripciones": "#9c36b5",
          "Salud": "#e03131", "Servicios": "#f08c00", "Hogar": "#0c8599", "Educación": "#5f3dc4", "Compras en línea": "#d6336c",
-         "Intereses y cobros": "#c92a2a", "Ingresos": "#0d9b6a", "Transferencias recibidas": "#0d9b6a",
+         "Intereses y cobros": "#c92a2a", "Deudas": "#a61e4d", "Ingresos": "#0d9b6a", "Transferencias recibidas": "#0d9b6a",
          "Transferencias enviadas": "#6741d9", "Traslado propio": "#868e96", "Pago de tarjeta": "#868e96", "Reversado": "#868e96",
          "Devoluciones": "#0d9b6a", "Arriendo": "#e67700", "Ocio": "#d6336c", "Otros": "#868e96"}
 PALETA = ["#7a1fd6", "#d6336c", "#0d9b6a", "#f08c00", "#1971c2", "#e8590c", "#0c8599", "#868e96"]

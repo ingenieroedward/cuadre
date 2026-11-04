@@ -8,6 +8,8 @@ import unicodedata
 from datetime import date, timedelta
 
 import avisos
+import cuentas
+import deudas
 import lector
 
 MESES_N = {"ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6, "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12}
@@ -136,8 +138,12 @@ def procesar(c, user_id, texto, titulo="", banco="", fuente="notificacion", fech
     reglas = [(r["kw"], r["categoria"]) for r in c.execute("SELECT kw,categoria FROM reglas")]
     r = interpretar(texto, titulo, banco, hoy=fecha_defecto)
     mov_id = None
+    if r.get("banco"):
+        r["banco"] = cuentas.resolver(c, user_id, r["banco"])
     if r["estado"] == "creado":
         mov_id = insertar(c, user_id, r["tipo"], r["monto"], r["descripcion"], r["fecha"], r["banco"], fuente, reglas)
+        firmado = -abs(r["monto"]) if r["tipo"] == "gasto" else abs(r["monto"])
+        r["deuda"] = deudas.registrar_automatico(c, r["descripcion"], firmado, r["fecha"], mov_id)
     c.execute("""INSERT INTO capturas(user_id,fuente,texto,estado,monto,descripcion,fecha,banco,mov_id,creado)
         VALUES(?,?,?,?,?,?,?,?,?,?)""", (user_id, fuente, texto[:2000], r["estado"], r.get("monto"), r.get("descripcion"),
                                          r.get("fecha"), r.get("banco"), mov_id, avisos.ahora().isoformat()))
@@ -152,5 +158,5 @@ def conciliar(c, user_id, banco, fecha, monto):
                   (user_id, banco, monto, fecha, fecha)).fetchone()
     if r:
         c.execute("DELETE FROM movs WHERE id=?", (r["id"],))
-        return True
-    return False
+        return r["id"]
+    return None

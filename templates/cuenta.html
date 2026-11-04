@@ -1,6 +1,11 @@
 {% extends "base.html" %}{% block t %}Mi cuenta · Cuadre{% endblock %}{% block c %}
 <div class="ph"><div><h1>Mi cuenta</h1><p>{{u.nombre}} · {{u.username}}</p></div><a class="btn line" href="/logout">{{ico('logout',17)}}Salir</a></div>
-<div class="stack"><div class="card"><div class="hd"><h2>{{ico('finger',19)}}Passkeys</h2></div>
+<div class="stack"><div class="card flush">
+<a class="li" href="/avisos" style="color:inherit"><span class="chip s">{{ico('bell',17)}}</span><div class="t"><b>Avisos y recordatorios</b><small>Pagos, presupuestos, extractos</small></div>{{ico('chevr',18)}}</a>
+<a class="li" href="/cuentas" style="color:inherit"><span class="chip s" style="--c:#0c8599">{{ico('wallet',17)}}</span><div class="t"><b>Cuentas</b><small>Ahorros, corriente, bajo monto y 4x1000</small></div>{{ico('chevr',18)}}</a>
+<a class="li" href="/conectar" style="color:inherit"><span class="chip s" style="--c:#f08c00">{{ico('zap',17)}}</span><div class="t"><b>Captura automática</b><small>Notificaciones y correos de alerta</small></div>{{ico('chevr',18)}}</a>
+<a class="li" href="/miembros" style="color:inherit"><span class="chip s" style="--c:#2f9e44">{{ico('users',17)}}</span><div class="t"><b>Familia</b><small>Quién tiene acceso</small></div>{{ico('chevr',18)}}</a></div>
+<div class="card"><div class="hd"><h2>{{ico('finger',19)}}Passkeys</h2></div>
 <p class="sub" style="margin:-6px 0 10px">Entra con tu huella, Face ID o el PIN del dispositivo, sin escribir la clave. Crea una en cada celular o computador que uses.</p>
 {% for k in pks %}<div class="li"><span class="chip s">{{ico('phone',17)}}</span><div class="t"><b>{{k.nombre}}</b><small>Creada el {{k.creado[:10]}}</small></div>
 <form method="post" action="/passkey/{{k.id}}/borrar" onsubmit="return confirm('¿Eliminar esta passkey?')"><button class="ghost del">{{ico('trash',17)}}</button></form></div>

@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% block t %}Cuentas · Cuadre{% endblock %}{% block c %}
+<div class="ph"><div><h1>Cuentas</h1><p>Tus cuentas y si pagan el 4x1000</p></div><button onclick="abrirCuenta()">{{ico('plus',17)}}Nueva cuenta</button></div>
+<div class="stack">
+{% for a in aviso %}<div class="flash e" style="margin:0;align-items:flex-start">{{ico('alert')}}<span>{{a}}</span></div>{% endfor %}
+<div class="card alert p"><div class="ic">{{ico('info',22)}}</div><div class="t"><b>¿Qué es lo exento del 4x1000?</b>
+<div class="sub">El 4x1000 (GMF) es un impuesto de 0,4 % sobre lo que sale de tus cuentas. Las cuentas de ahorros pueden marcarse como exentas hasta un tope mensual y normalmente solo una por persona; los depósitos de bajo monto (Nequi, Daviplata…) tienen su propia exención; las cuentas corrientes pagan. Confirma el tope vigente con tu banco.</div></div></div>
+{% if gmf_total %}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>4x1000 estimado este mes</b><div class="sub">Solo cuentas no exentas: 0,4 % de lo que salió.</div></div><b style="font-size:20px">{{gmf_total|cop}}</b></div></div>{% endif %}
+{% for x in lista %}{% set q=x.q %}<div class="card"><div style="display:flex;gap:12px;align-items:center">
+<span class="chip" style="--c:{{'#0c8599' if q.tipo=='bajo_monto' else '#7a1fd6' if q.tipo=='ahorros' else '#e8590c'}}">{{ico('wallet',18)}}</span>
+<div style="flex:1;min-width:0"><b style="font-size:16px">{{q.nombre}}</b><div class="sub">{{q.dueno}}{% if q.entidad and q.entidad!=q.nombre %} · {{q.entidad}}{% endif %}{% if q.ultimos4 %} · ••{{q.ultimos4}}{% endif %}</div></div>
+<div class="n">{% if x.saldo is not none %}<b style="font-size:17px">{{x.saldo|cop}}</b><div class="sub">saldo estimado</div>{% else %}<span class="sub">sin saldo</span>{% endif %}</div></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><span class="pill">{{tipos[q.tipo]}}</span>
+{% if q.exenta %}<span class="pill ok">{{ico('check',13)}}Exenta de 4x1000</span>{% else %}<span class="pill warn">Paga 4x1000</span>{% endif %}<span class="pill" style="background:var(--sf2);color:var(--mu)">{{x.movs}} {{'movimiento' if x.movs==1 else 'movimientos'}}</span></div>
+{% if not q.exenta and x.salidas %}<div class="sub" style="margin-top:10px">Este mes salieron {{x.salidas|cop}}: 4x1000 estimado <b>{{x.gmf|cop}}</b>.</div>{% endif %}
+<div style="display:flex;gap:8px;margin-top:12px"><button class="line" type="button" onclick='abrirCuenta({{ {"id":q.id,"nombre":q.nombre,"entidad":q.entidad,"tipo":q.tipo,"exenta":q.exenta,"ultimos4":q.ultimos4}|tojson|forceescape }})'>Editar</button>
+<form method="post" action="/cuentas/{{q.id}}/borrar" onsubmit="return confirm('{{'Tiene historial: se archivará y sus movimientos se conservan.' if x.movs else 'Se eliminará la cuenta.'}} ¿Continuar?')"><button class="line del">Quitar</button></form></div></div>
+{% else %}<div class="card empty">{{ico('wallet',32)}}<div style="margin-bottom:10px">Aún no tienes cuentas. Se crean solas al subir un extracto, o agrégalas aquí.</div><button onclick="abrirCuenta()">Agregar una cuenta</button></div>{% endfor %}</div>
+<dialog id="dcuenta"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px" id="dc-t">Nueva cuenta</h2><button class="ghost" type="button" onclick="dcuenta.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" id="dc-f" action="/cuentas">
+<label class="f">Nombre de la cuenta<input name="nombre" id="dc-n" placeholder="Nu, Bancolombia Ahorros…" required list="dc-ent"></label>
+<div class="frm row2"><label class="f">Entidad<input name="entidad" id="dc-e" placeholder="Nu, Nequi…" list="dc-ent"></label>
+<label class="f">Últimos 4 dígitos<input name="ultimos4" id="dc-4" inputmode="numeric" maxlength="4" placeholder="Opcional"></label></div>
+<datalist id="dc-ent"><option>Nu</option><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Davivienda</option><option>BBVA</option><option>Banco de Bogotá</option></datalist>
+<label class="f">Tipo<select name="tipo" id="dc-t2"><option value="ahorros">Cuenta de ahorros</option><option value="corriente">Cuenta corriente</option><option value="bajo_monto">Depósito de bajo monto</option></select></label>
+<label class="f" id="dc-p">De quién<select name="persona">{% for x in usuarios_c %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
+<label class="f" style="flex-direction:row;align-items:center;gap:10px;color:var(--tx);font-size:14px;font-weight:600"><input type="checkbox" name="exenta" value="1" id="dc-x" style="width:20px;height:20px;padding:0">Esta cuenta está exenta del 4x1000</label>
+<button style="justify-content:center" id="dc-b">Guardar cuenta</button></form></dialog>
+<script>
+function abrirCuenta(c){const f=document.getElementById("dc-f");
+ if(c){f.action="/cuentas/"+c.id;dc_t.textContent="Editar cuenta";dc_n.value=c.nombre;dc_e.value=c.entidad||"";dc_4.value=c.ultimos4||"";dc_t2.value=c.tipo;dc_x.checked=!!c.exenta;dc_p.style.display="none";}
+ else{f.action="/cuentas";dc_t.textContent="Nueva cuenta";f.reset();dc_p.style.display="";}
+ dcuenta.showModal();}
+document.addEventListener("change",e=>{if(e.target.id==="dc-t2"&&!dc_f_edit())dc_x.checked=(e.target.value==="bajo_monto")});function dc_f_edit(){return document.getElementById("dc-f").action.split("/").length>4||/\/cuentas\/\d+$/.test(document.getElementById("dc-f").action)}
+</script>{% endblock %}

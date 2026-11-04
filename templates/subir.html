@@ -5,7 +5,7 @@
 <input type="file" name="archivos" accept=".pdf" multiple required onchange="nom.textContent=this.files.length+(this.files.length==1?' archivo seleccionado: '+this.files[0].name:' archivos seleccionados')"></label>
 <div class="frm row" style="margin-top:16px">
 <label class="f">De quién<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
-<label class="f">Banco<select name="banco">{% for b in bancos %}<option>{{b}}</option>{% endfor %}</select></label>
+<label class="f">Cuenta<input name="banco" list="cuentas-lista" value="{{bancos[0] if bancos else 'Nu'}}" autocomplete="off" required><datalist id="cuentas-lista">{% for b in bancos %}<option value="{{b}}">{% endfor %}</datalist></label>
 <label class="f">Tipo (se detecta solo)<select name="tipo"><option value="cuenta">Cuenta de ahorros</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
 <label class="f">Clave del PDF (tu cédula)<input name="clave" type="password" autocomplete="off" placeholder="Solo para abrirlo"></label></div>
 <div style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><button class="btn lg">{{ico('upload',18)}}Subir y leer</button>

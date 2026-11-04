@@ -26,6 +26,7 @@
 <label class="f">De quién<select name="persona">{% for x in usuarios %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label></div>
 <label class="f">Saldo actual<input name="valor" inputmode="decimal" placeholder="$ 699.205,98" required autocomplete="off"></label>
 <button style="justify-content:center">Guardar saldo</button></form></dialog>
+{% if res_deudas and res_deudas.n %}<a class="card alert x" href="/deudas" style="color:inherit"><div class="ic">{{ico('bank',22)}}</div><div class="t"><b>Deudas: {{res_deudas.saldo|cop}}</b><div class="sub">{{res_deudas.n}} activa(s) · cuotas {{res_deudas.cuotas|cop}}/mes{% if res_deudas.proxima %} · próxima {{res_deudas.proxima.d.nombre}} el {{res_deudas.proxima.e.proxima.strftime('%d/%m')}}{% endif %}</div></div>{{ico('chevr',20)}}</a>{% endif %}
 {% if pres %}<div class="card"><div class="hd"><h2>{{ico('target',19)}}Presupuestos</h2><a href="/avisos" class="sub">Editar</a></div>
 {% for p in pres %}{% set pct=(p.gasto/p.limite*100)|round|int if p.limite else 0 %}
 <div style="padding:8px 0"><div class="pres"><span style="display:flex;gap:10px;align-items:center">{{p.categoria|ico(16,'s')}}<b>{{p.categoria}}</b></span>

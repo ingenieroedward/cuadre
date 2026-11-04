@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block t %}{{d.nombre}} · Cuadre{% endblock %}{% block c %}
+<div class="ph"><div><a href="/deudas" class="sub" style="display:flex;gap:4px;align-items:center">{{ico('chevl',15)}}Deudas</a><h1>{{d.nombre}}</h1><p>{{d.tipo}} · {{d.responsable}} · {{'Yo debo' if d.direccion=='debo' else 'Me deben'}}</p></div>
+{% if not e.pagada %}<button onclick="dpago.showModal()">{{ico('plus',17)}}Registrar {{'pago' if d.direccion=='debo' else 'cobro'}}</button>{% else %}<span class="pill ok">{{ico('check',14)}}Pagada</span>{% endif %}</div>
+<div class="stack">
+<div class="g2 w"><div class="card hero"><div class="lbl">Saldo pendiente</div><div class="big">{{e.saldo|cop}}</div>
+<div class="bar" style="background:#ffffff33;--c:#fff"><i style="width:{{(e.pct*100)|round|int}}%"></i></div>
+<div class="two" style="margin-top:12px"><div><small>Cuotas</small><b>{{e.cubiertas}} de {{e.n}}</b></div><div><small>Pagado</small><b>{{(e.pct*100)|round|int}}%</b></div></div></div>
+<div class="card"><div class="li" style="padding-left:0"><div class="t"><b>Cuota mensual</b></div><div class="n b">{{e.cuota|cop}}</div></div>
+<div class="li" style="padding-left:0"><div class="t"><b>Tasa E.A.{% if e.costo_real %} (costo real){% endif %}</b></div><div class="n b">{{('%.2f'|format(e.ea)).replace('.',',')}}%</div></div>
+<div class="li" style="padding-left:0"><div class="t"><b>Próxima cuota</b></div><div class="n b">{{e.proxima.strftime('%d/%m/%Y') if e.proxima else '—'}}</div></div>
+<div class="li" style="padding-left:0"><div class="t"><b>Termina</b></div><div class="n b">{{e.fin.strftime('%m/%Y') if e.fin else '—'}}</div></div></div></div>
+<div class="g2"><div class="card"><div class="hd"><h2>{{ico('percent',19)}}Intereses</h2></div>
+<div class="li" style="padding-left:0"><div class="t">Ya pagados</div><div class="n b">{{e.int_pagado|cop}}</div></div>
+<div class="li" style="padding-left:0"><div class="t">Por pagar</div><div class="n b">{{e.int_restante|cop}}</div></div>
+<div class="li" style="padding-left:0"><div class="t">Total de la deuda</div><div class="n b">{{(e.P+e.int_total)|cop}}</div></div></div>
+<div class="card"><div class="hd"><h2>{{ico('info',19)}}Qué puedes hacer</h2></div>
+{% if e.pagada %}<p class="sub">Esta deuda ya está pagada.</p>
+{% elif e.ea==0 %}<p class="sub">No tiene intereses: no conviene adelantarla si tienes otras deudas con interés. Págala al ritmo de sus cuotas.</p>
+{% else %}{% set ahorro=(e.int_restante*0.0)+0 %}<p class="sub">Cada abono extra a capital reduce los intereses futuros y acorta el plazo, y tu cuota sigue igual. En <a href="/deudas">Deudas</a> puedes comparar cuánto ahorrarías con distintos extras.</p>
+{% if e.costo_real %}<p class="sub" style="margin-top:8px">Como no diste la tasa, el {{('%.2f'|format(e.ea)).replace('.',',')}}% E.A. es el que sale de tu cuota: incluye seguros y cobros.</p>{% endif %}{% endif %}</div></div>
+<div class="card flush"><div class="hd" style="padding:18px 20px 0"><h2>{{ico('calendar',19)}}Tabla de cuotas</h2></div><div class="wrap"><table><tr><th>#</th><th>Fecha</th><th class="n">Cuota</th><th class="n hide-s">Interés</th><th class="n hide-s">Capital</th><th class="n">Saldo</th><th></th></tr>
+{% for r in e.rows %}<tr style="{{'opacity:.6' if r.pagada}}"><td>{{r.n}}</td><td>{{r.fecha.strftime('%d/%m/%y')}}</td><td class="n">{{r.cuota|cop}}</td><td class="n hide-s">{{r.interes|cop}}</td><td class="n hide-s">{{r.capital|cop}}</td><td class="n">{{r.saldo|cop}}</td>
+<td>{% if r.pagada %}<span class="pill ok">{{ico('check',13)}}</span>{% endif %}</td></tr>{% endfor %}</table></div></div>
+<div class="card flush"><div class="hd" style="padding:18px 20px 0"><h2>{{ico('receipt',19)}}Pagos registrados</h2></div>
+{% for p in pagos %}<div class="li"><span class="chip s" style="--c:{{'#7a1fd6' if p.tipo=='abono' else '#0d9b6a'}}">{{ico('check',16)}}</span><div class="t"><b>{{p.monto|cop}}</b><small>{{p.fecha}} · {{'Abono a capital' if p.tipo=='abono' else 'Cuota'}}{% if p.nota %} · {{p.nota}}{% endif %}</small></div>
+<form method="post" action="/deudas/{{d.id}}/pago/{{p.id}}/borrar" onsubmit="return confirm('¿Quitar este pago?')"><button class="ghost del">{{ico('trash',17)}}</button></form></div>
+{% else %}<div class="empty">{{ico('receipt',28)}}<div>Aún no hay pagos. Si el pago llega como movimiento y su descripción tiene «{{d.palabra_clave or d.nombre|lower}}», Cuadre lo registra solo.</div></div>{% endfor %}</div>
+<form method="post" action="/deudas/{{d.id}}/borrar" onsubmit="return confirm('¿Eliminar esta deuda y sus pagos?')"><button class="line del">{{ico('trash',17)}}Eliminar deuda</button></form></div>
+<dialog id="dpago"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:17px">Registrar pago</h2><button class="ghost" type="button" onclick="dpago.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" action="/deudas/{{d.id}}/pago"><label class="f">Valor<input name="monto" inputmode="decimal" value="{{((e.proxima_monto or e.cuota)|round(2))|string|replace('.',',')}}" required></label>
+<div class="frm row2"><label class="f">Fecha<input type="date" name="fecha" value="{{hoy}}"></label><label class="f">Es<select name="tipo"><option value="cuota">Una cuota</option><option value="abono">Abono extra a capital</option></select></label></div>
+<button style="justify-content:center">Guardar pago</button></form></dialog>{% endblock %}

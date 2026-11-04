@@ -25,6 +25,8 @@ from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, PublicKeyC
 import avisos
 import captura
 import correo
+import cuentas
+import deudas
 import icons
 import lector
 import saldos
@@ -81,6 +83,7 @@ tpl = Jinja2Templates(directory=str(BASE / "templates"))
 tpl.env.filters["cop"] = avisos.cop
 tpl.env.filters["ico"] = icons.cat
 tpl.env.filters["color"] = icons.color
+tpl.env.filters["en_meses"] = lambda n: f"{MES_ES[deudas.add_months(date.today(), int(n)).month - 1][:3]} {deudas.add_months(date.today(), int(n)).year}"
 tpl.env.filters["inicial"] = lambda t: (t or "?").strip()[:1].upper()
 MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 DIA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -141,6 +144,12 @@ def init():
     CREATE TABLE IF NOT EXISTS config(clave TEXT PRIMARY KEY, valor TEXT);
     CREATE TABLE IF NOT EXISTS saldos(id INTEGER PRIMARY KEY, user_id INTEGER, banco TEXT, fecha TEXT, saldo REAL,
         corte_id INTEGER, fuente TEXT, UNIQUE(user_id,banco,fecha,fuente));
+    CREATE TABLE IF NOT EXISTS deudas(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, tipo TEXT, direccion TEXT DEFAULT 'debo',
+        principal REAL, n_cuotas INTEGER, cuota REAL, tasa_ea REAL, primera_cuota TEXT, palabra_clave TEXT, notas TEXT, activo INTEGER DEFAULT 1);
+    CREATE TABLE IF NOT EXISTS deuda_pagos(id INTEGER PRIMARY KEY, deuda_id INTEGER, fecha TEXT, monto REAL, tipo TEXT DEFAULT 'cuota',
+        mov_id INTEGER, nota TEXT);
+    CREATE TABLE IF NOT EXISTS cuentas(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, entidad TEXT, tipo TEXT DEFAULT 'ahorros',
+        exenta INTEGER DEFAULT 0, ultimos4 TEXT, activa INTEGER DEFAULT 1, UNIQUE(user_id,nombre));
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -150,6 +159,7 @@ def init():
                               ("users", "token", "TEXT")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
+    cuentas.sembrar(c)
     c.commit()
     # Compatibilidad: si defines ADMIN_PASSWORD se crea el primer admin al arrancar.
     # Si no, la primera visita muestra la pantalla "Crear administrador" (recomendado).
@@ -203,9 +213,10 @@ def render(request, name, **ctx):
             "SELECT descripcion, COUNT(*) n FROM movs WHERE monto<0 GROUP BY descripcion ORDER BY n DESC, MAX(fecha) DESC LIMIT 30")]
         ctx["usuarios"] = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
         ctx["n_revisar"] = c.execute("SELECT COUNT(*) n FROM capturas WHERE estado='por_revisar'").fetchone()["n"]
-        c.close()
         ctx.setdefault("pre", {})
-        ctx["medios"] = ["Efectivo"] + BANCOS
+        ctx["cuentas_n"] = cuentas.nombres(c, BANCOS)
+        c.close()
+        ctx["medios"] = ["Efectivo"] + ctx["cuentas_n"]
         ctx["cats_q"] = CATEGORIAS
         ctx["hoy_iso"] = avisos.ahora().date().isoformat()
     return tpl.TemplateResponse(request, name, ctx)
@@ -349,12 +360,13 @@ def dashboard(request: Request, mes: str = ""):
     pagos = c.execute("""SELECT p.*, u.nombre FROM pagos_tarjeta p JOIN users u ON u.id=p.user_id
         WHERE p.pagado=0 ORDER BY p.fecha_limite LIMIT 3""").fetchall()
     lista_saldos = saldos.actuales(c)
+    resumen_d = resumen_deudas(c)
     n_prov = c.execute("SELECT COUNT(*) n FROM movs WHERE estado='provisional' AND substr(fecha,1,7)=?", (mes,)).fetchone()["n"]
     n_pk = c.execute("SELECT COUNT(*) n FROM passkeys WHERE user_id=?", (u["id"],)).fetchone()["n"]
     c.close()
     pagos = [dict(p, dias=(date.fromisoformat(p["fecha_limite"]) - date.today()).days) for p in pagos]
     return render(request, "dashboard.html", u=u, mes=mes, tot=tot, cats=[dict(x) for x in cats],
-                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov, saldos=lista_saldos, saldo_total=sum(x['estimado'] for x in lista_saldos),
+                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov, saldos=lista_saldos, res_deudas=resumen_d, saldo_total=sum(x['estimado'] for x in lista_saldos),
                   mes_txt=mes_txt(mes), prev=mover_mes(mes, -1), next=mover_mes(mes, 1), mes_txt_f=mes_txt)
 
 
@@ -449,8 +461,9 @@ def export(request: Request, mes: str = "", persona: int = 0, cat: str = "", q: 
 @app.get("/subir")
 def subir_form(request: Request):
     u = user(request)
-    c = db(); users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall(); c.close()
-    return render(request, "subir.html", u=u, users=users, bancos=BANCOS, resultado=None)
+    c = db(); users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+    lista_c = cuentas.nombres(c, BANCOS); c.close()
+    return render(request, "subir.html", u=u, users=users, bancos=lista_c, resultado=None)
 
 
 @app.post("/subir")
@@ -459,6 +472,8 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
     u = user(request)
     c = db()
     reglas = [(r["kw"], r["categoria"]) for r in c.execute("SELECT kw,categoria FROM reglas")]
+    banco = banco.strip() or "Nu"
+    cuentas.asegurar(c, persona, banco)
     resultado = []
     for f in archivos:
         datos = await f.read()
@@ -477,11 +492,18 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
             vistos[k] = vistos.get(k, 0) + 1
             h = hashlib.sha256(f"{k}|{vistos[k]}".encode()).hexdigest()
             try:
-                c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo,estado,fuente)
+                cur = c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo,estado,fuente)
                     VALUES(?,?,?,?,?,?,?,?,?,'confirmado','extracto')""", (persona, banco, m["fecha"], m["descripcion"], m["monto"],
                                                    m["categoria"], m["origen"], h, f.filename))
                 nuevos += 1
-                concil += 1 if captura.conciliar(c, persona, banco, m["fecha"], m["monto"]) else 0
+                viejo = captura.conciliar(c, persona, banco, m["fecha"], m["monto"])
+                if viejo:
+                    concil += 1
+                    c.execute("UPDATE deuda_pagos SET mov_id=? WHERE mov_id=?", (cur.lastrowid, viejo))
+                    if c.execute("SELECT 1 FROM deuda_pagos WHERE mov_id=?", (cur.lastrowid,)).fetchone():
+                        c.execute("UPDATE movs SET categoria='Deudas' WHERE id=?", (cur.lastrowid,))
+                elif m["origen"] != "tarjeta":
+                    deudas.registrar_automatico(c, m["descripcion"], m["monto"], m["fecha"], cur.lastrowid)
             except sqlite3.IntegrityError:
                 pass  # duplicado: ya estaba cargado
         notas = []
@@ -502,14 +524,22 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
             else:
                 notas.append(("bad", f"No cuadra: el extracto dice entró {avisos.cop(info['entro'])} y salió {avisos.cop(info['salio'])}; "
                                      f"Cuadre leyó {avisos.cop(ent)} y {avisos.cop(sal)}. Revisa si falta alguna línea."))
+        if info and info.get("gmf") is not None:
+            q = c.execute("SELECT * FROM cuentas WHERE user_id=? AND nombre=?", (persona, banco)).fetchone()
+            if info["gmf"] > 0:
+                notas.append(("warn", f"El banco cobró {avisos.cop(info['gmf'])} de 4x1000 este mes." + (" Esta cuenta está marcada como exenta: revísalo." if q and q["exenta"] else "")))
+            elif q and not q["exenta"]:
+                notas.append(("ok", "El extracto no cobró 4x1000. Si esta cuenta está exenta, márcala así en Cuentas."))
         if concil:
             notas.append(("ok", f"{concil} movimientos que ya habías capturado quedaron confirmados por el extracto."))
         resultado.append({"f": f.filename, "e": "OK" if movs else "Sin movimientos reconocidos", "l": len(movs), "n": nuevos, "notas": notas})
     c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('ultima_subida',?)", (avisos.ahora().isoformat(),))
     c.commit()
-    users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall(); c.close()
+    users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+    lista_c = cuentas.nombres(c, BANCOS)
+    c.close()
     bg.add_task(avisos.revisar_presupuestos, db, PEM)
-    return render(request, "subir.html", u=u, users=users, bancos=BANCOS, resultado=resultado)
+    return render(request, "subir.html", u=u, users=users, bancos=lista_c, resultado=resultado)
 
 
 # ---------- Miembros ----------
@@ -753,6 +783,7 @@ def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gast
     desc = descripcion.strip() or ("Ingreso" if tipo == "ingreso" else "Gasto")
     cat = lector.categoria(desc, reglas) if categoria == "Auto" else categoria
     efectivo = medio == "Efectivo"
+    cuentas.asegurar(c, persona or u["id"], medio)
     if tipo == "retiro":
         if efectivo:
             c.close()
@@ -773,9 +804,11 @@ def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gast
         VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], medio, fecha or date.today().isoformat(), desc[:200],
                                          valor if tipo == "ingreso" else -valor, cat, "manual", h,
                                          "confirmado" if efectivo else "provisional", "manual"))
+    mid = c.execute("SELECT last_insert_rowid() i").fetchone()["i"]
+    pago_de = deudas.registrar_automatico(c, desc, valor if tipo == "ingreso" else -valor, fecha or date.today().isoformat(), mid)
     c.commit(); c.close()
     bg.add_task(avisos.revisar_presupuestos, db, PEM)
-    msg = "Guardado" + ("" if efectivo else ". Quedará confirmado cuando llegue el extracto")
+    msg = "Guardado" + (f" y registrado como pago de {pago_de}" if pago_de else "") + ("" if efectivo else ". Quedará confirmado cuando llegue el extracto")
     from urllib.parse import urlparse
     destino = urlparse(request.headers.get("referer", "")).path or "/"
     return volver(request, "/" if destino in ("/rapido", "/login") else destino, msg=msg)
@@ -902,3 +935,188 @@ def borrar_saldo(request: Request, sid: int):
     user(request)
     c = db(); c.execute("DELETE FROM saldos WHERE id=?", (sid,)); c.commit(); c.close()
     return RedirectResponse("/", 303)
+
+
+# ---------- Deudas ----------
+def cargar_deudas(c):
+    out = []
+    for d in c.execute("""SELECT d.*, u.nombre AS responsable FROM deudas d JOIN users u ON u.id=d.user_id
+                          WHERE d.activo=1 ORDER BY d.direccion DESC, d.id""").fetchall():
+        pagos = c.execute("SELECT * FROM deuda_pagos WHERE deuda_id=? ORDER BY fecha, id", (d["id"],)).fetchall()
+        out.append({"d": d, "e": deudas.estado(d, pagos), "pagos": pagos})
+    return out
+
+
+def resumen_deudas(c):
+    todas = cargar_deudas(c)
+    debo = [x for x in todas if x["d"]["direccion"] == "debo" and not x["e"]["pagada"]]
+    if not todas:
+        return None
+    prox = sorted([x for x in debo if x["e"]["proxima"]], key=lambda x: x["e"]["proxima"])
+    return {"n": len(debo), "saldo": sum(x["e"]["saldo"] for x in debo), "cuotas": sum(x["e"]["cuota"] for x in debo),
+            "proxima": prox[0] if prox else None,
+            "me_deben": sum(x["e"]["saldo"] for x in todas if x["d"]["direccion"] == "me_deben" and not x["e"]["pagada"])}
+
+
+@app.get("/deudas")
+def pagina_deudas(request: Request, extra: str = ""):
+    u = user(request)
+    c = db()
+    todas = cargar_deudas(c)
+    users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+    res = resumen_deudas(c)
+    c.close()
+    debo = [x for x in todas if x["d"]["direccion"] == "debo"]
+    activas = [x for x in debo if not x["e"]["pagada"]]
+    try:
+        extra_v = captura.numero_es(extra) if extra else 0.0
+    except ValueError:
+        extra_v = 0.0
+    est = None
+    if activas:
+        est = deudas.estrategia([{"nombre": x["d"]["nombre"], "saldo": x["e"]["saldo"], "i": x["e"]["i"], "ea": x["e"]["ea"],
+                                  "cuota": x["e"]["cuota"]} for x in activas], extra_v)
+    return render(request, "deudas.html", u=u, debo=debo, me_deben=[x for x in todas if x["d"]["direccion"] == "me_deben"],
+                  res=res, est=est, extra=extra_v, usuarios_d=users, hoy=date.today().isoformat(),
+                  interes_total=sum(x["e"]["int_restante"] for x in activas))
+
+
+@app.post("/deudas")
+def crear_deuda(request: Request, nombre: str = Form(...), tipo: str = Form("Préstamo"), direccion: str = Form("debo"),
+                principal: str = Form(...), n_cuotas: int = Form(...), cuota: str = Form(""), tasa_ea: str = Form(""),
+                primera_cuota: str = Form(...), palabra_clave: str = Form(""), persona: int = Form(0)):
+    u = user(request)
+    try:
+        P = captura.numero_es(principal)
+        q = captura.numero_es(cuota) if cuota.strip() else None
+        ea = captura.numero_es(tasa_ea.replace("%", "")) if tasa_ea.strip() else None
+    except ValueError:
+        return volver(request, "/deudas", err="Revisa los números: valor prestado, cuota o E.A.")
+    if P <= 0 or n_cuotas < 1:
+        return volver(request, "/deudas", err="El valor prestado y el número de cuotas deben ser mayores que cero")
+    c = db()
+    c.execute("""INSERT INTO deudas(user_id,nombre,tipo,direccion,principal,n_cuotas,cuota,tasa_ea,primera_cuota,palabra_clave)
+        VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], nombre.strip()[:80], tipo, direccion, P, n_cuotas, q, ea,
+                                         primera_cuota, palabra_clave.strip().lower()[:60]))
+    did = c.execute("SELECT last_insert_rowid() i").fetchone()["i"]
+    c.commit(); c.close()
+    return volver(request, f"/deudas/{did}", msg="Deuda guardada")
+
+
+@app.get("/deudas/{did}")
+def detalle_deuda(request: Request, did: int):
+    u = user(request)
+    c = db()
+    d = c.execute("SELECT d.*, u.nombre AS responsable FROM deudas d JOIN users u ON u.id=d.user_id WHERE d.id=?", (did,)).fetchone()
+    if not d:
+        c.close()
+        return RedirectResponse("/deudas", 303)
+    pagos = c.execute("SELECT * FROM deuda_pagos WHERE deuda_id=? ORDER BY fecha DESC, id DESC", (did,)).fetchall()
+    c.close()
+    e = deudas.estado(d, pagos)
+    return render(request, "deuda.html", u=u, d=d, e=e, pagos=pagos, hoy=date.today().isoformat())
+
+
+@app.post("/deudas/{did}/pago")
+def pago_deuda(request: Request, did: int, monto: str = Form(...), fecha: str = Form(""), tipo: str = Form("cuota")):
+    user(request)
+    try:
+        v = abs(captura.numero_es(monto))
+    except ValueError:
+        return volver(request, f"/deudas/{did}", err="Escribe el valor en números")
+    c = db()
+    c.execute("INSERT INTO deuda_pagos(deuda_id,fecha,monto,tipo,nota) VALUES(?,?,?,?,?)",
+              (did, fecha or date.today().isoformat(), v, "abono" if tipo == "abono" else "cuota", "Registrado a mano"))
+    c.commit(); c.close()
+    return volver(request, f"/deudas/{did}", msg="Pago registrado")
+
+
+@app.post("/deudas/{did}/pago/{pid}/borrar")
+def borrar_pago_deuda(request: Request, did: int, pid: int):
+    user(request)
+    c = db(); c.execute("DELETE FROM deuda_pagos WHERE id=? AND deuda_id=?", (pid, did)); c.commit(); c.close()
+    return RedirectResponse(f"/deudas/{did}", 303)
+
+
+@app.post("/deudas/{did}/borrar")
+def borrar_deuda(request: Request, did: int):
+    user(request)
+    c = db()
+    c.execute("DELETE FROM deuda_pagos WHERE deuda_id=?", (did,)); c.execute("DELETE FROM deudas WHERE id=?", (did,))
+    c.commit(); c.close()
+    return volver(request, "/deudas", msg="Deuda eliminada")
+
+
+# ---------- Cuentas ----------
+@app.get("/cuentas")
+def pagina_cuentas(request: Request):
+    u = user(request)
+    c = db()
+    lista = cuentas.listado(c, date.today().strftime("%Y-%m"), saldos.actuales(c))
+    users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+    c.close()
+    return render(request, "cuentas.html", u=u, lista=lista, usuarios_c=users, tipos=cuentas.TIPOS, aviso=cuentas.avisos_exencion(lista),
+                  gmf_total=sum(x["gmf"] for x in lista))
+
+
+def _cuenta_form(nombre, entidad, tipo, exenta, ultimos4):
+    return (nombre.strip()[:60], (entidad.strip() or nombre.strip())[:60], tipo if tipo in cuentas.TIPOS else "ahorros",
+            1 if exenta else 0, "".join(ch for ch in ultimos4 if ch.isdigit())[:4])
+
+
+@app.post("/cuentas")
+def crear_cuenta(request: Request, nombre: str = Form(...), entidad: str = Form(""), tipo: str = Form("ahorros"),
+                 exenta: str = Form(""), ultimos4: str = Form(""), persona: int = Form(0)):
+    u = user(request)
+    n, e, t, ex, l4 = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4)
+    if not n or n in cuentas.RESERVADOS:
+        return volver(request, "/cuentas", err="Ponle un nombre a la cuenta")
+    c = db()
+    try:
+        c.execute("INSERT INTO cuentas(user_id,nombre,entidad,tipo,exenta,ultimos4) VALUES(?,?,?,?,?,?)",
+                  (persona or u["id"], n, e, t, ex, l4))
+        c.commit()
+    except sqlite3.IntegrityError:
+        c.close()
+        return volver(request, "/cuentas", err="Esa persona ya tiene una cuenta con ese nombre")
+    c.close()
+    return volver(request, "/cuentas", msg="Cuenta creada")
+
+
+@app.post("/cuentas/{cid}")
+def editar_cuenta(request: Request, cid: int, nombre: str = Form(...), entidad: str = Form(""), tipo: str = Form("ahorros"),
+                  exenta: str = Form(""), ultimos4: str = Form("")):
+    user(request)
+    n, e, t, ex, l4 = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4)
+    c = db()
+    viejo = c.execute("SELECT * FROM cuentas WHERE id=?", (cid,)).fetchone()
+    if not viejo or not n:
+        c.close()
+        return volver(request, "/cuentas", err="No se encontró la cuenta")
+    try:
+        c.execute("UPDATE cuentas SET nombre=?, entidad=?, tipo=?, exenta=?, ultimos4=? WHERE id=?", (n, e, t, ex, l4, cid))
+        if n != viejo["nombre"]:     # el nombre es la llave de los movimientos y saldos de esa cuenta
+            for tabla in ("movs", "saldos", "pagos_tarjeta"):
+                c.execute(f"UPDATE {tabla} SET banco=? WHERE user_id=? AND banco=?", (n, viejo["user_id"], viejo["nombre"]))
+        c.commit()
+    except sqlite3.IntegrityError:
+        c.close()
+        return volver(request, "/cuentas", err="Ya existe una cuenta con ese nombre")
+    c.close()
+    return volver(request, "/cuentas", msg="Cuenta actualizada")
+
+
+@app.post("/cuentas/{cid}/borrar")
+def borrar_cuenta(request: Request, cid: int):
+    user(request)
+    c = db()
+    q = c.execute("SELECT * FROM cuentas WHERE id=?", (cid,)).fetchone()
+    if q:
+        hay = c.execute("SELECT 1 FROM movs WHERE user_id=? AND banco=? LIMIT 1", (q["user_id"], q["nombre"])).fetchone()
+        if hay:
+            c.execute("UPDATE cuentas SET activa=0 WHERE id=?", (cid,))      # tiene historial: se archiva
+        else:
+            c.execute("DELETE FROM cuentas WHERE id=?", (cid,))
+        c.commit()
+    c.close()
+    return volver(request, "/cuentas", msg="Cuenta quitada")

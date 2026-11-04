@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
+import deudas
 import lector
 
 TZ = ZoneInfo(os.environ.get("TZ", "America/Bogota"))
@@ -141,6 +142,24 @@ def revisar(db, pem):
                       + f" · límite {date.fromisoformat(p['fecha_limite']):%d/%m}")
             avisar(db, pem, f"tarjeta:{p['id']}:{dias}", f"Tu tarjeta {p['banco']} {quedan}", cuerpo, [p["user_id"]])
 
+    c = db()
+    deus = c.execute("SELECT * FROM deudas WHERE activo=1").fetchall()
+    for d in deus:                                            # 1b) cuotas de deudas
+        pagos = c.execute("SELECT monto,tipo FROM deuda_pagos WHERE deuda_id=?", (d["id"],)).fetchall()
+        e = deudas.estado(d, pagos, hoy)
+        if e["pagada"] or e["proxima"] is None:
+            continue
+        dias = e["dias"]
+        if dias in (3, 1, 0) or -3 <= dias < 0:
+            quedan = ("vence HOY" if dias == 0 else f"vence en {dias} día{'s' if dias != 1 else ''}" if dias > 0
+                      else f"venció hace {-dias} día{'s' if dias != -1 else ''}")
+            if d["direccion"] == "debo":
+                titulo = f"Cuota de {d['nombre']} {quedan}"
+                cuerpo = f"Cuota {e['cuota'] and cop(e['proxima_monto'])} · saldo {cop(e['saldo'])} · día {e['proxima']:%d/%m}"
+            else:
+                titulo, cuerpo = f"Te toca cobrar: {d['nombre']} ({quedan})", f"Cuota {cop(e['proxima_monto'])} · te deben {cop(e['saldo'])}"
+            avisar(db, pem, f"deuda:{d['id']}:{e['cubiertas']}:{dias}", titulo, cuerpo, [d["user_id"]], url="/deudas")
+    c.close()
     for r in recs:                                            # 2) recordatorios de la familia
         for k in (0, 1):
             y, m = hoy.year + (hoy.month + k - 1) // 12, (hoy.month + k - 1) % 12 + 1

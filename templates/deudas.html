@@ -1,0 +1,68 @@
+{% extends "base.html" %}{% block t %}Deudas · Cuadre{% endblock %}{% block c %}
+<div class="ph"><div><h1>Deudas</h1><p>Lo que debes y lo que te deben, con sus cuotas e intereses</p></div><button onclick="dnueva.showModal()">{{ico('plus',17)}}Nueva deuda</button></div>
+<div class="stack">
+{% if res and res.n %}<div class="g2 w"><div class="card hero"><div class="lbl">Lo que debes en total</div><div class="big">{{res.saldo|cop}}</div>
+<div class="two"><div><small>{{ico('clock',15)}} Cuotas al mes</small><b>{{res.cuotas|cop}}</b></div><div><small>{{ico('percent',15)}} Intereses por pagar</small><b>{{interes_total|cop}}</b></div></div></div>
+<div class="card"><div class="hd"><h2>{{ico('calendar',19)}}Próxima cuota</h2></div>
+{% if res.proxima %}{% set p=res.proxima %}<div class="li" style="padding-left:0"><span class="chip">{{ico('bank',18)}}</span><div class="t"><b>{{p.d.nombre}}</b><small>{{p.e.proxima.strftime('%d/%m/%Y')}} · {{'hoy' if p.e.dias==0 else 'en %d día(s)'|format(p.e.dias) if p.e.dias>0 else 'vencida hace %d día(s)'|format(-p.e.dias)}}</small></div><div class="n b">{{p.e.proxima_monto|cop}}</div></div>{% endif %}
+{% if res.me_deben %}<div class="sub" style="margin-top:8px">Además te deben {{res.me_deben|cop}}.</div>{% endif %}</div></div>{% endif %}
+
+{% macro tarjeta(x) %}{% set d=x.d %}{% set e=x.e %}
+<div class="card" style="padding:0"><a href="/deudas/{{d.id}}" style="color:inherit;display:block;padding:16px 18px 6px">
+<div style="display:flex;gap:12px;align-items:center"><span class="chip" style="--c:{{'#0d9b6a' if e.pagada else '#a61e4d'}}">{{ico('check' if e.pagada else 'bank',18)}}</span>
+<div style="flex:1;min-width:0"><b style="font-size:16px">{{d.nombre}}</b><div class="sub">{{d.tipo}} · {{d.responsable}}</div></div>
+<div class="n"><b style="font-size:18px">{{e.saldo|cop}}</b><div class="sub">{{'pagada' if e.pagada else 'saldo'}}</div></div></div>
+<div class="bar {{'ok' if e.pct>=1 else ''}}" style="margin:14px 0 8px;--c:#7a1fd6"><i style="width:{{(e.pct*100)|round|int}}%"></i></div>
+<div class="sub" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>{{e.cubiertas}} de {{e.n}} cuotas · {{(e.pct*100)|round|int}}% pagado</span>
+<span>{{e.cuota|cop}}/mes · {{('%.2f'|format(e.ea)).replace('.',',')}}% E.A.{% if e.costo_real %} (real){% endif %}</span></div></a>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 18px 14px;gap:8px;flex-wrap:wrap">
+<span class="pill {{'warn' if e.dias is not none and e.dias<=3 else ''}}">{% if e.pagada %}Pagada{% elif e.dias is none %}—{% else %}{{ico('calendar',14)}} {{e.proxima.strftime('%d/%m')}}{% endif %}</span>
+{% if not e.pagada %}<button class="soft" type="button" onclick="pagar({{d.id}},{{d.nombre|tojson|forceescape}},{{(e.proxima_monto or e.cuota)|round(2)}})">{{'Registrar pago' if d.direccion=='debo' else 'Registrar cobro'}}</button>{% endif %}</div></div>{% endmacro %}
+
+<div><div class="hd"><h2>{{ico('bank',19)}}Lo que debo</h2></div><div class="stack">{% for x in debo %}{{tarjeta(x)}}{% else %}
+<div class="card empty">{{ico('bank',32)}}<div style="margin-bottom:10px">Aún no has registrado deudas</div><button onclick="dnueva.showModal()">Registrar la primera</button></div>{% endfor %}</div></div>
+{% if me_deben %}<div><div class="hd"><h2>{{ico('users',19)}}Me deben</h2></div><div class="stack">{% for x in me_deben %}{{tarjeta(x)}}{% endfor %}</div></div>{% endif %}
+
+{% if est and debo|length %}<div class="card"><div class="hd"><h2>{{ico('target',19)}}¿Cómo pagar más rápido?</h2></div>
+<p class="sub" style="margin:-6px 0 12px">Escribe cuánto más podrías poner cada mes, además de las cuotas, y compara las dos formas de pagar.</p>
+<form class="frm row" method="get" action="/deudas" style="margin-bottom:14px"><label class="f">Extra al mes<input name="extra" inputmode="decimal" value="{{(('%.2f'|format(extra)).replace('.',',')) if extra else ''}}" placeholder="$ 200.000"></label><button>Calcular</button></form>
+<div class="wrap"><table><tr><th></th><th class="n">Meses</th><th class="n">Intereses</th><th class="n">Terminas</th></tr>
+<tr><td><b>Solo las cuotas</b></td><td class="n">{{est.base.meses}}</td><td class="n">{{est.base.interes|cop}}</td><td class="n">{{est.base.meses|en_meses}}</td></tr>
+{% if extra %}<tr><td><b>Avalancha</b> {% if est.mejor=='avalancha' %}<span class="pill ok">Recomendada</span>{% endif %}<div class="sub">Primero la más cara</div></td><td class="n">{{est.avalancha.meses}}</td><td class="n">{{est.avalancha.interes|cop}}</td><td class="n">{{est.avalancha.meses|en_meses}}</td></tr>
+<tr><td><b>Bola de nieve</b> {% if est.mejor=='nieve' %}<span class="pill ok">Recomendada</span>{% endif %}<div class="sub">Primero la más pequeña</div></td><td class="n">{{est.nieve.meses}}</td><td class="n">{{est.nieve.interes|cop}}</td><td class="n">{{est.nieve.meses|en_meses}}</td></tr>{% endif %}</table></div>
+{% if extra %}{% set mj=est[est.mejor] %}<div class="flash m" style="margin:14px 0 0">{{ico('check')}}<span>Con {{extra|cop}} extra al mes y el método <b>{{'avalancha' if est.mejor=='avalancha' else 'bola de nieve'}}</b> terminas en {{mj.meses}} meses y te ahorras {{(est.base.interes-mj.interes)|cop}} en intereses.</span></div>
+<p class="sub" style="margin-top:10px"><b>Orden sugerido:</b> {{est.orden[est.mejor]|join('  →  ')}}. Mientras tanto paga las cuotas normales de todas.</p>{% endif %}
+<p class="sub" style="margin-top:8px">Las deudas sin interés (E.A. 0 %) no conviene adelantarlas: se pagan al final.</p></div>{% endif %}
+</div>
+
+<dialog id="dnueva"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px">Nueva deuda</h2><button class="ghost" type="button" onclick="dnueva.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" action="/deudas" oninput="prev()">
+<div class="tipo"><label><input type="radio" name="direccion" value="debo" checked>Yo debo</label><label class="in"><input type="radio" name="direccion" value="me_deben">Me deben</label></div>
+<label class="f">Nombre<input name="nombre" placeholder="Crédito Nequi, Préstamo a Juan…" required></label>
+<div class="frm row2"><label class="f">Tipo<select name="tipo"><option>Préstamo bancario</option><option>Crédito de consumo</option><option>Tarjeta a cuotas</option><option>Familiar o amigo</option><option>Vehículo</option><option>Vivienda</option><option>Otro</option></select></label>
+<label class="f">De quién<select name="persona">{% for x in usuarios_d %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label></div>
+<div class="frm row2"><label class="f">Valor prestado<input id="d-p" name="principal" inputmode="decimal" placeholder="$ 5.000.000" required></label>
+<label class="f">Número de cuotas<input id="d-n" name="n_cuotas" type="number" min="1" max="600" placeholder="24" required></label></div>
+<div class="frm row2"><label class="f">Valor de la cuota<input id="d-c" name="cuota" inputmode="decimal" placeholder="Si lo sabes"></label>
+<label class="f">Tasa E.A. (%)<input id="d-e" name="tasa_ea" inputmode="decimal" placeholder="0 si no hay interés"></label></div>
+<div id="d-prev" class="flash m" style="margin:0;display:none"></div>
+<div class="frm row2"><label class="f">Fecha de la 1.ª cuota<input type="date" name="primera_cuota" value="{{hoy}}" required></label>
+<label class="f">Palabra del pago<input name="palabra_clave" placeholder="nequi, claro…"></label></div>
+<p class="sub">Llena la cuota <b>o</b> la tasa: Cuadre calcula la otra. Si dejas la tasa vacía y pones la cuota, te muestra el costo real. La palabra del pago sirve para que Cuadre reconozca solo el pago en tus movimientos.</p>
+<button class="btn lg" style="justify-content:center">Guardar deuda</button></form></dialog>
+
+<dialog id="dpago"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:17px" id="dpago-t">Registrar pago</h2><button class="ghost" type="button" onclick="dpago.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" id="dpago-f"><label class="f">Valor<input name="monto" id="dpago-m" inputmode="decimal" required></label>
+<div class="frm row2"><label class="f">Fecha<input type="date" name="fecha" value="{{hoy}}"></label><label class="f">Es<select name="tipo"><option value="cuota">Una cuota</option><option value="abono">Abono extra a capital</option></select></label></div>
+<button style="justify-content:center">Guardar pago</button></form></dialog>
+<script>
+function pagar(id,n,m){document.getElementById("dpago-f").action="/deudas/"+id+"/pago";document.getElementById("dpago-t").textContent=n;document.getElementById("dpago-m").value=String(m).replace(".",",");dpago.showModal();}
+const num=s=>{s=(s||"").replace(/[^\d.,-]/g,"");if(s.includes(","))s=s.replace(/\./g,"").replace(",",".");else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,"");return parseFloat(s)};
+const fmt=v=>"$"+v.toLocaleString("es-CO",{minimumFractionDigits:2,maximumFractionDigits:2});
+function prev(){const P=num(document.getElementById("d-p").value),n=parseInt(document.getElementById("d-n").value),c=num(document.getElementById("d-c").value),e=num(document.getElementById("d-e").value),el=document.getElementById("d-prev");
+ if(!(P>0&&n>0)){el.style.display="none";return}let t="";
+ if(c>0&&isNaN(e)){let lo=0,hi=1;if(c*n<=P*1.0000001){t="Sin intereses: pagarás "+fmt(c*n)+" en total."}else{for(let k=0;k<100;k++){const m=(lo+hi)/2;(P*m/(1-Math.pow(1+m,-n))<c)?lo=m:hi=m}t="Costo real: "+((Math.pow(1+lo,12)-1)*100).toFixed(2).replace(".",",")+"% E.A. · pagarás "+fmt(c*n)+" en total ("+fmt(c*n-P)+" de intereses y cobros)."}}
+ else if(!(c>0)){const i=e>0?Math.pow(1+e/100,1/12)-1:0,q=i?P*i/(1-Math.pow(1+i,-n)):P/n;t="Cuota calculada: "+fmt(q)+" al mes · pagarás "+fmt(q*n)+" en total ("+fmt(q*n-P)+" de intereses)."}
+ else{t="Cuota "+fmt(c)+" con "+(e||0)+"% E.A."}
+ el.textContent=t;el.style.display="flex"}
+</script>{% endblock %}
