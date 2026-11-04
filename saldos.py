@@ -1,4 +1,6 @@
 """Saldo por cuenta: último saldo conocido (extracto o ajuste manual) + los movimientos posteriores."""
+from datetime import date
+
 import avisos
 
 CORTE_EXTRACTO = 2_147_483_647   # los movimientos de la fecha de cierre ya están dentro del saldo del extracto
@@ -33,14 +35,21 @@ def actuales(c):
                           (s["user_id"], s["banco"], s["fecha"], s["fecha"], s["corte_id"])).fetchone()
         caj = c.execute("""SELECT * FROM cajitas WHERE user_id=? AND banco=? ORDER BY fecha DESC LIMIT 1""", (s["user_id"], s["banco"])).fetchone()
         cfg = c.execute("SELECT ea_actual FROM rend_cfg WHERE user_id=? AND banco=?", (s["user_id"], s["banco"])).fetchone()
-        info_caj = None
-        if caj and caj["ea_cajitas"] is not None:
-            ea_ext = caj["ea_cajitas"]
-            ea = cfg["ea_actual"] if cfg and cfg["ea_actual"] is not None else ea_ext
-            est = max(s["saldo"] + delta["v"] - (caj["saldo_cuenta"] or 0), 0.0)
-            info_caj = {"ea_extracto": ea_ext, "ea": ea, "extra": ea - ea_ext, "saldo": est, "fecha": caj["fecha"],
-                        "rend_mes": est * ((1 + ea / 100) ** (1 / 12) - 1), "rend_extracto": caj["rend_cajitas"]}
+        info_caj, acum = None, 0.0
+        ea_cfg = cfg["ea_actual"] if cfg and cfg["ea_actual"] is not None else None
+        if (caj and caj["ea_cajitas"] is not None) or ea_cfg is not None:
+            ea_ext = caj["ea_cajitas"] if caj and caj["ea_cajitas"] is not None else None
+            ea = ea_cfg if ea_cfg is not None else ea_ext
+            # si no hay desglose de cajitas en un extracto, se supone que todo el saldo está en cajitas
+            est = max(s["saldo"] + delta["v"] - ((caj["saldo_cuenta"] or 0) if caj else 0), 0.0)
+            dias = max((date.today() - date.fromisoformat(s["fecha"])).days, 0)
+            acum = est * ((1 + ea / 100) ** (dias / 365) - 1)           # los rendimientos se pagan a diario
+            info_caj = {"ea_extracto": ea_ext, "ea": ea, "extra": (ea - ea_ext) if ea_ext is not None else 0.0, "saldo": est + acum,
+                        "fecha": caj["fecha"] if caj else s["fecha"], "base": s["fecha"], "dias": dias, "acum": acum,
+                        "rend_dia": (est + acum) * ((1 + ea / 100) ** (1 / 365) - 1),
+                        "rend_mes": (est + acum) * ((1 + ea / 100) ** (1 / 12) - 1),
+                        "rend_extracto": caj["rend_cajitas"] if caj else None}
         out.append({"cajitas": info_caj, "id": s["id"], "user_id": s["user_id"], "nombre": s["nombre"], "banco": s["banco"], "fecha": s["fecha"],
                     "base": s["saldo"], "fuente": s["fuente"], "delta": delta["v"], "n": delta["n"], "pend": delta["p"] or 0,
-                    "estimado": s["saldo"] + delta["v"]})
+                    "estimado": s["saldo"] + delta["v"] + acum})
     return out

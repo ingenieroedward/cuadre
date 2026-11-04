@@ -157,6 +157,38 @@ def _bolsillo(etiqueta, todo):
     return {"saldo": a_numero(m[1]), "ea": a_numero(m[2]), "rend": a_numero(m[3])} if m else None
 
 
+def _bolsillos(todo):
+    """Devuelve (cuenta, cajitas). Primero el formato 'etiqueta $saldo Rendimientos | x% $rend'; si el PDF entrega las columnas
+    revueltas, se lee la sección 'Dinero Disponible' completa: las dos tasas van en el orden cuenta -> cajitas y se emparejan
+    los valores por tamaño."""
+    cu, cj = _bolsillo(r"Dinero en tu Cuenta Nu", todo), _bolsillo(r"Dinero en tus cajitas", todo)
+    if cj:
+        return cu, cj
+    t = re.sub(r"\s+", " ", todo)
+    ini = t.lower().find("dinero disponible")
+    if ini < 0:
+        ini = t.lower().find("dinero en tu cuenta")
+    if ini < 0:
+        return cu, None
+    fin = t.lower().find("resumen de tus movimientos", ini)
+    zona = t[ini: fin if fin > 0 else ini + 900]
+    tasas = [a_numero(x) for x in re.findall(r"([\d.,]+)\s*%\s*Efectivo Anual", zona, re.I)]
+    montos = [a_numero(x) for x in re.findall(r"\$\s*([\d.]+,\d{2})", zona)]
+    if len(tasas) < 2 or len(montos) < 4:
+        return cu, None
+    saldo_cj = max(montos)
+    resto = list(montos)
+    resto.remove(saldo_cj)
+    ea_cj = tasas[1]
+    esperado = saldo_cj * ((1 + ea_cj / 100) ** (1 / 12) - 1)
+    rend_cj = min(resto, key=lambda v: abs(v - esperado))
+    resto.remove(rend_cj)
+    cuenta_saldo, rend_cu = (resto[0], resto[1]) if len(resto) >= 2 else (0.0, 0.0)
+    cu = {"saldo": min(cuenta_saldo, rend_cu) if cuenta_saldo < rend_cu and rend_cu > 1000 else cuenta_saldo, "ea": tasas[0],
+          "rend": rend_cu if rend_cu <= cuenta_saldo or cuenta_saldo == 0 else min(resto)}
+    return cu, {"saldo": saldo_cj, "ea": ea_cj, "rend": rend_cj}
+
+
 def info_cuenta(todo):
     """Totales y saldos que Nu imprime en el resumen del extracto."""
     entro = _dinero(r"Lo que entr[oó] a tu cuenta\s*\+?\$([\d.]+,\d{2})", todo)
@@ -170,7 +202,7 @@ def info_cuenta(todo):
             "final": _dinero(r"Tu dinero a final del mes\s*\$([\d.]+,\d{2})", todo),
             "gmf": _dinero(r"Impuesto del 4x1000\s*\$([\d.]+,\d{2})", todo),
             "rend_total": _dinero(r"Rendimiento total de tu cuenta\s*\+?\$([\d.]+,\d{2})", todo),
-            "cajitas": _bolsillo(r"Dinero en tus cajitas", todo), "cuenta_nu": _bolsillo(r"Dinero en tu Cuenta Nu", todo)}
+            "cuenta_nu": _bolsillos(todo)[0], "cajitas": _bolsillos(todo)[1]}
 
 
 def info_tarjeta(todo):

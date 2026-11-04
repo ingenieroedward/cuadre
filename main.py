@@ -556,6 +556,8 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                     notas.append(("ok", f"Rendimientos del mes: {avisos.cop(info['rend_total'])}."))
                 except sqlite3.IntegrityError:
                     pass
+            if not info.get("cajitas") and banco.lower().startswith("nu"):
+                notas.append(("warn", "No encontré el desglose de cajitas en este extracto. Puedes escribir la tasa de tus cajitas en Resumen → Ajustar."))
             if info.get("cajitas"):
                 cj = info["cajitas"]
                 notas.append(("ok", f"Cajitas: {avisos.cop(cj['saldo'])} al {info['cierre'][8:]}/{info['cierre'][5:7]}, rendimiento {('%.2f' % cj['ea']).replace('.', ',')}% E.A."))
