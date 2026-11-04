@@ -180,8 +180,37 @@ def info_tarjeta(todo):
             "deuda_total": _dinero(r"DEUDA TOTAL[^$]*\$([\d.]+,\d{2})", todo)}
 
 
+def _mov_tarjeta(fecha, texto, reglas):
+    """Un registro de la tabla de la tarjeta: 'descripción $valor [k de n] [$cuota] [tasa%] ... [$restante]'."""
+    texto = re.sub(r"\s+", " ", texto.split("↪")[0]).strip()
+    dinero = RE_DINERO.findall(texto)
+    if not dinero or not fecha:
+        return None
+    desc = re.sub(r"Mercad\s+olibre", "Mercadolibre", texto.split(dinero[0])[0]).strip()
+    valor = abs(a_numero(dinero[0]) or 0)
+    if not valor:
+        return None
+    d = desc.lower()
+    if d.startswith("pago"):
+        monto, cat = valor, "Pago de tarjeta"
+    elif "reversi" in d or "devoluci" in d:
+        monto, cat = valor, "Devoluciones"
+    else:
+        monto, cat = -valor, categoria(desc, reglas)
+    mov = {"fecha": fecha, "descripcion": desc[:200], "monto": monto, "categoria": cat}
+    resto = texto[len(texto.split(dinero[0])[0]):]
+    mc = re.search(r"(\d+)\s+de\s+(\d+)", resto)
+    if mc and int(mc[2]) > 1 and cat != "Pago de tarjeta" and monto < 0 and len(dinero) >= 2:
+        mt = re.search(r"(\d+[.,]\d+)\s*%", resto)
+        mov.update({"cuotas": (int(mc[1]), int(mc[2])), "valor_cuota": abs(a_numero(dinero[1]) or 0),
+                    "tasa_mv": float(mt[1].replace(",", ".")) if mt else 0.0,
+                    "restante": abs(a_numero(dinero[-1]) or 0) if len(dinero) >= 5 else None})
+    return mov
+
+
 def _leer_tarjeta(todo, reglas):
-    """Registros de varias líneas: 'DD MES' / 'AAAA' / descripción (puede partirse) / valores."""
+    """Primero el formato 'DD MES' / 'AAAA' / descripción / valores en líneas separadas; si no sale nada,
+    el lector flexible, que no depende de cómo vengan partidas las líneas."""
     lineas = [l.strip() for l in todo.splitlines()]
     movs, i = [], 0
     while i < len(lineas):
@@ -197,29 +226,62 @@ def _leer_tarjeta(todo, reglas):
             j += 1
             if hay:
                 break
-        texto = " ".join(partes)
-        dinero = RE_DINERO.findall(texto)
-        if dinero and fecha:
-            desc = re.sub(r"Mercad\s+olibre", "Mercadolibre", texto.split(dinero[0])[0]).strip()
-            valor = abs(a_numero(dinero[0]) or 0)
-            d = desc.lower()
-            if d.startswith("pago"):
-                monto, cat = valor, "Pago de tarjeta"
-            elif "reversi" in d or "devoluci" in d:
-                monto, cat = valor, "Devoluciones"
-            else:
-                monto, cat = -valor, categoria(desc, reglas)
-            if valor:
-                extra = {}
-                resto = texto[len(texto.split(dinero[0])[0]):]
-                mc = re.search(r"(\d+)\s+de\s+(\d+)", resto)
-                if mc and int(mc[2]) > 1 and cat != "Pago de tarjeta" and monto < 0 and len(dinero) >= 2:
-                    mt = re.search(r"(\d+[.,]\d+)\s*%", resto)
-                    extra = {"cuotas": (int(mc[1]), int(mc[2])), "valor_cuota": abs(a_numero(dinero[1]) or 0),
-                             "tasa_mv": float(mt[1].replace(",", ".")) if mt else 0.0,
-                             "restante": abs(a_numero(dinero[-1]) or 0) if len(dinero) >= 5 else None}
-                movs.append({"fecha": fecha, "descripcion": desc[:200], "monto": monto, "categoria": cat, **extra})
+        mov = _mov_tarjeta(fecha, " ".join(partes), reglas)
+        if mov:
+            movs.append(mov)
         i = j
+    if not movs:
+        movs = _leer_tarjeta_flexible(todo, reglas)
+    return _anular_reversiones(movs)
+
+
+MESES_RX = "ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|SET|OCT|NOV|DIC"
+RE_ANCLA = re.compile(r"(?<![\d/])(\d{1,2})\s+(" + MESES_RX + r")[A-ZÁÉÍÓÚ]*\.?(?:\s+(20\d{2}))?(?![\w/])", re.I)
+
+
+def _leer_tarjeta_flexible(todo, reglas):
+    """Busca cada fecha ('24 OCT', con o sin año) dentro de la tabla de movimientos y lee lo que sigue hasta la próxima."""
+    t = re.sub(r"\s+", " ", todo)
+    ini = t.lower().find("descripci")
+    if ini < 0:
+        ini = 0
+    fin = len(t)
+    for marca in ("¿tienes preguntas", "tienes preguntas", "pago mínimo", "pago minimo"):
+        k = t.lower().find(marca, ini)
+        if k > 0:
+            fin = min(fin, k)
+    zona = t[ini:fin]
+    anclas = list(RE_ANCLA.finditer(zona))
+    movs = []
+    for n, a in enumerate(anclas):
+        fin_seg = anclas[n + 1].start() if n + 1 < len(anclas) else len(zona)
+        resto = zona[a.end():fin_seg]
+        anio = a[3]
+        if not anio:                                       # el año puede venir después de los valores: '... 2026 transacción'
+            m = re.match(r"\s*(20\d{2})\b", resto)
+            if m:
+                anio, resto = m[1], resto[m.end():]
+        dinero = list(RE_DINERO.finditer(resto))
+        if not dinero:
+            continue
+        cola = resto[dinero[-1].end():]
+        m = re.match(r"\s*(?:\d+\s+de\s+\d+\s*)?(?:\d+[.,]\d+\s*%\s*)?(20\d{2})(?:\s+([^\d$↪][^$↪]*))?", cola)
+        extra = ""
+        if m:
+            anio = anio or m[1]
+            extra = " " + (m[2] or "").strip()
+        if not anio:
+            continue
+        mes = MESES.get(sin_tildes(a[2]).lower()[:3], MESES.get("sep" if a[2].lower() == "set" else "", 0))
+        fecha = _fecha(int(anio), mes, int(a[1]))
+        texto = resto[:dinero[0].start()].strip() + extra + " " + resto[dinero[0].start():]
+        mov = _mov_tarjeta(fecha, texto, reglas)
+        if mov:
+            movs.append(mov)
+    return movs
+
+
+def _anular_reversiones(movs):
     # una reversión que anula una compra igual del mismo extracto: ambas quedan en "Reversado"
     for r in [x for x in movs if x["categoria"] == "Devoluciones"]:
         for c in movs:
@@ -227,6 +289,12 @@ def _leer_tarjeta(todo, reglas):
                 r["categoria"] = c["categoria"] = "Reversado"
                 break
     return movs
+
+
+def texto_pdf(datos: bytes, clave: str) -> str:
+    """El texto tal como lo entrega la lectura del PDF (para diagnosticar formatos nuevos)."""
+    with pdfplumber.open(io.BytesIO(datos), password=clave or None) as pdf:
+        return "\n".join((p.extract_text() or "") for p in pdf.pages)
 
 
 def _leer_cuenta(todo, tipo, reglas):

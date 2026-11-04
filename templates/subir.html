@@ -14,7 +14,12 @@
 {% for r in resultado %}<div class="li"><span class="chip s" style="--c:{{'#0d9b6a' if r.e=='OK' else '#dc3a52'}}">{{ico('file' if r.e=='OK' else 'alert',17)}}</span>
 <div class="t"><b>{{r.f}}</b><small style="white-space:normal">{{r.e}}</small>
 {% for tipo,txt in r.notas %}<div class="sub {{tipo}}" style="display:flex;gap:7px;margin-top:4px;align-items:flex-start">{{ico('check' if tipo=='ok' else 'alert',16)}}<span>{{txt}}</span></div>{% endfor %}</div>
-<div class="n"><span class="pill">{{r.l}} leídos</span> <span class="pill ok">{{r.n}} nuevos</span></div></div>{% endfor %}
+<div class="n"><span class="pill">{{r.l}} leídos</span> <span class="pill ok">{{r.n}} nuevos</span></div></div>
+{% if r.diag %}<details class="how" style="padding:0 20px 14px"><summary>{{ico('search',17)}}Ver cómo leí este PDF</summary>
+<p class="sub">Si el formato es nuevo, copia este texto y mándaselo a quien te ayuda a configurar Cuadre para que lo ajuste. Puedes borrar tu nombre, dirección y números antes de compartirlo.</p>
+<pre class="code" id="diag{{loop.index}}" style="max-height:260px;overflow:auto">{{r.diag}}</pre>
+<button class="soft" type="button" onclick="navigator.clipboard.writeText(document.getElementById('diag{{loop.index}}').textContent)">Copiar texto</button></details>{% endif %}
+{% endfor %}
 <div style="padding:14px 20px"><a class="btn" href="/movimientos">Revisar movimientos</a></div></div>{% endif %}
 <a class="card alert p" href="/conectar" style="color:inherit"><div class="ic">{{ico('zap',22)}}</div><div class="t"><b>¿No quieres esperar al extracto?</b><div class="sub">Captura los movimientos al momento desde el celular o los correos de alerta.</div></div>{{ico('chevr',20)}}</a>
 <div class="card"><div class="hd"><h2>{{ico('info',19)}}Cómo hacerlo</h2></div><div class="steps">

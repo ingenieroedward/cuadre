@@ -547,7 +547,14 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                 notas.append(("ok", "El extracto no cobró 4x1000. Si esta cuenta está exenta, márcala así en Cuentas."))
         if concil:
             notas.append(("ok", f"{concil} movimientos que ya habías capturado quedaron confirmados por el extracto."))
-        resultado.append({"f": f.filename, "e": "OK" if movs else "Sin movimientos reconocidos", "l": len(movs), "n": nuevos, "notas": notas})
+        diag = ""
+        if not movs:
+            try:
+                diag = lector.texto_pdf(datos, clave)[:7000]
+            except Exception:
+                diag = ""
+        resultado.append({"f": f.filename, "e": "OK" if movs else "Sin movimientos reconocidos", "l": len(movs), "n": nuevos,
+                          "notas": notas, "diag": diag})
     c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('ultima_subida',?)", (avisos.ahora().isoformat(),))
     c.commit()
     users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
