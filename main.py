@@ -163,7 +163,7 @@ def init():
                               ("users", "token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
                               ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
                               ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
-                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
+                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("rend_cfg", "cajitas_base", "REAL"), ("rend_cfg", "base_fecha", "TEXT"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
@@ -973,16 +973,30 @@ def descartar_captura(request: Request, cid: int):
 
 # ---------- Saldos ----------
 @app.post("/saldos/ajustar")
-def ajustar_saldo(request: Request, banco: str = Form(...), persona: int = Form(...), valor: str = Form(""), ea_cajitas: str = Form("")):
+def ajustar_saldo(request: Request, banco: str = Form(...), persona: int = Form(...), valor: str = Form(""), ea_cajitas: str = Form(""),
+                  en_cajitas: str = Form("")):
     user(request)
     c = db()
+    if en_cajitas.strip():
+        try:
+            caj = captura.numero_es(en_cajitas)
+        except ValueError:
+            c.close()
+            return volver(request, "/", err="Escribe lo que tienes en cajitas en números")
+        if not valor.strip():
+            c.close()
+            return volver(request, "/", err="Para indicar lo que tienes en cajitas escribe también el saldo total")
+        c.execute("""INSERT INTO rend_cfg(user_id,banco,cajitas_base,base_fecha) VALUES(?,?,?,?)
+            ON CONFLICT(user_id,banco) DO UPDATE SET cajitas_base=excluded.cajitas_base, base_fecha=excluded.base_fecha""",
+                  (persona, banco, caj, avisos.ahora().date().isoformat()))
     if ea_cajitas.strip():
         try:
             ea = captura.numero_es(ea_cajitas.replace("%", ""))
         except ValueError:
             c.close()
             return volver(request, "/", err="Escribe la tasa en números, por ejemplo 9,85")
-        c.execute("INSERT OR REPLACE INTO rend_cfg(user_id,banco,ea_actual) VALUES(?,?,?)", (persona, banco, ea))
+        c.execute("""INSERT INTO rend_cfg(user_id,banco,ea_actual) VALUES(?,?,?)
+            ON CONFLICT(user_id,banco) DO UPDATE SET ea_actual=excluded.ea_actual""", (persona, banco, ea))
         if not valor.strip():
             c.commit(); c.close()
             return volver(request, "/", msg=f"Tasa de tus cajitas en {banco}: {('%.2f' % ea).replace('.', ',')}% E.A.")

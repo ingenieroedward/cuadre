@@ -34,18 +34,22 @@ def actuales(c):
             WHERE user_id=? AND banco=? AND origen!='tarjeta' AND (fecha > ? OR (fecha=? AND id > ?))""",
                           (s["user_id"], s["banco"], s["fecha"], s["fecha"], s["corte_id"])).fetchone()
         caj = c.execute("""SELECT * FROM cajitas WHERE user_id=? AND banco=? ORDER BY fecha DESC LIMIT 1""", (s["user_id"], s["banco"])).fetchone()
-        cfg = c.execute("SELECT ea_actual FROM rend_cfg WHERE user_id=? AND banco=?", (s["user_id"], s["banco"])).fetchone()
+        cfg = c.execute("SELECT * FROM rend_cfg WHERE user_id=? AND banco=?", (s["user_id"], s["banco"])).fetchone()
         info_caj, acum = None, 0.0
         ea_cfg = cfg["ea_actual"] if cfg and cfg["ea_actual"] is not None else None
         if (caj and caj["ea_cajitas"] is not None) or ea_cfg is not None:
             ea_ext = caj["ea_cajitas"] if caj and caj["ea_cajitas"] is not None else None
             ea = ea_cfg if ea_cfg is not None else ea_ext
             # si no hay desglose de cajitas en un extracto, se supone que todo el saldo está en cajitas
-            est = max(s["saldo"] + delta["v"] - ((caj["saldo_cuenta"] or 0) if caj else 0), 0.0)
+            total_est = s["saldo"] + delta["v"]
+            if (cfg and cfg["cajitas_base"] is not None and s["fuente"] == "manual" and s["fecha"] == cfg["base_fecha"]):
+                est = max(min(cfg["cajitas_base"] + delta["v"], max(total_est, 0.0)), 0.0)   # lo que la persona dijo que tenía en cajitas
+            else:
+                est = max(total_est - ((caj["saldo_cuenta"] or 0) if caj else 0), 0.0)        # si no, todo menos lo que había en la cuenta
             dias = max((date.today() - date.fromisoformat(s["fecha"])).days, 0)
             acum = est * ((1 + ea / 100) ** (dias / 365) - 1)           # los rendimientos se pagan a diario
             info_caj = {"ea_extracto": ea_ext, "ea": ea, "extra": (ea - ea_ext) if ea_ext is not None else 0.0, "saldo": est + acum,
-                        "fecha": caj["fecha"] if caj else s["fecha"], "base": s["fecha"], "dias": dias, "acum": acum,
+                        "fecha": caj["fecha"] if caj else s["fecha"], "base": s["fecha"], "en_cuenta": max(total_est - est, 0.0), "dias": dias, "acum": acum,
                         "rend_dia": (est + acum) * ((1 + ea / 100) ** (1 / 365) - 1),
                         "rend_mes": (est + acum) * ((1 + ea / 100) ** (1 / 12) - 1),
                         "rend_extracto": caj["rend_cajitas"] if caj else None}

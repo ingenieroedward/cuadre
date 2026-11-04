@@ -183,3 +183,5 @@ th.n,td.n{text-align:right}th.c,td.c{text-align:center;width:1%}
 .stack>*:first-child .sec-t,.sec-t:first-child{margin-top:4px}
 .stack .stack>*+*{margin-top:16px}
 @media(max-width:560px){.sec-t{margin:16px 2px 12px}}
+
+.li .t small b,.li .t small span{display:inline;white-space:normal;overflow:visible;text-overflow:clip}
