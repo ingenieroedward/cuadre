@@ -3,7 +3,7 @@
 <div style="display:flex;gap:8px"><a class="btn line" href="/export.csv?mes={{f.mes}}&persona={{f.persona}}&cat={{f.cat}}&q={{f.q}}">{{ico('download',17)}}CSV</a>
 <button onclick="nuevo.showModal()">{{ico('plus',17)}}Nuevo</button></div></div>
 <form class="filters" method="get">
-<input type="month" name="mes" value="{{f.mes}}" onchange="this.form.submit()" title="Mes">
+<input type="month" name="mes" value="{{f.mes}}" onchange="this.form.submit()" title="Mes">{% if f.mes %}<a class="pill" href="/movimientos?mes=todos">Ver todos los meses</a>{% endif %}
 <select name="persona" onchange="this.form.submit()"><option value="0">Toda la familia</option>{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==f.persona}}>{{x.nombre}}</option>{% endfor %}</select>
 <select name="cat" onchange="this.form.submit()"><option value="">Todas las categorías</option>{% for c in cats %}<option {{'selected' if c==f.cat}}>{{c}}</option>{% endfor %}</select>
 <input class="grow" name="q" value="{{f.q}}" placeholder="Buscar…" type="search"><button class="soft">{{ico('search',17)}}</button></form>

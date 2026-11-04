@@ -82,6 +82,8 @@ def categoria(desc, reglas):
         return "Pago de tarjeta"
     if any(sin_tildes(n) in sin_tildes(d) for n in NOMBRES_PROPIOS):
         return "Traslado propio"
+    if re.search(r"\bretiro\b|retiraste|\bcajero\b", d):
+        return "Traslado propio"       # sacar efectivo no es gastar: el gasto se anota cuando se paga con ese efectivo
     for kw, cat in reglas:               # reglas del usuario primero
         if kw.lower() in d:
             return cat

@@ -375,6 +375,7 @@ def filtros(mes, persona, cat, q):
 @app.get("/movimientos")
 def movimientos(request: Request, mes: str = "", persona: int = 0, cat: str = "", q: str = ""):
     u = user(request)
+    mes = "" if mes == "todos" else (mes or date.today().strftime("%Y-%m"))
     w, p = filtros(mes, persona, cat, q)
     c = db()
     rows = c.execute(f"""SELECT m.*, u.nombre FROM movs m JOIN users u ON u.id=m.user_id
@@ -752,6 +753,21 @@ def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gast
     desc = descripcion.strip() or ("Ingreso" if tipo == "ingreso" else "Gasto")
     cat = lector.categoria(desc, reglas) if categoria == "Auto" else categoria
     efectivo = medio == "Efectivo"
+    if tipo == "retiro":
+        if efectivo:
+            c.close()
+            return volver(request, "/", err="Para un retiro elige de qué banco sacaste el efectivo")
+        dia = fecha or date.today().isoformat()
+        for banco_, monto_, est in ((medio, -valor, "provisional"), ("Efectivo", valor, "confirmado")):
+            hh = hashlib.sha256(f"retiro{secrets.token_hex(8)}".encode()).hexdigest()
+            c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], banco_, dia, "Retiro de efectivo", monto_, "Traslado propio",
+                                                 "manual", hh, est, "manual"))
+        c.commit(); c.close()
+        from urllib.parse import urlparse
+        destino = urlparse(request.headers.get("referer", "")).path or "/"
+        return volver(request, "/" if destino in ("/rapido", "/login") else destino,
+                      msg=f"Retiro anotado: sale de {medio} y entra a tu efectivo")
     h = hashlib.sha256(f"rapido{secrets.token_hex(8)}".encode()).hexdigest()
     c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente)
         VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], medio, fecha or date.today().isoformat(), desc[:200],
