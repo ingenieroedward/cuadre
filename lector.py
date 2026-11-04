@@ -16,11 +16,12 @@ RE_FECHA = re.compile(
 )
 
 INGRESO_CLAVES = ["abono", "consignaci", "rendimiento", "recib", "deposito", "depósito",
-                  "nómina", "nomina", "pago recibido", "reembolso", "devoluci"]
+                  "nómina", "nomina", "pago recibido", "reembolso", "devoluci", "reversi"]
 
 CATEGORIAS_BASE = {
     "Suscripciones": ["netflix", "spotify", "disney", "amazon", "youtube", "apple", "hbo", "openai", "anthropic", "paramount"],
     "Educación": ["platzi", "udemy", "coursera", "colegio", "universidad", "matricula", "matrícula"],
+    "Compras en línea": ["merpago", "mercadolibre", "mercad olibre", "temu", "shein", "aliexpress"],
     "Supermercado": ["exito", "éxito", " d1 ", " ara ", "jumbo", "olimpica", "olímpica", "carulla", "makro", "canasto", "supertienda"],
     "Comida": ["rappi", "restaur", "mcdonald", "kfc", "domicilio", "ifood", "cafe", "café", "panader", "pizza"],
     "Transporte": ["uber", "didi", "cabify", "indriver", "terpel", "primax", "texaco", "peaje", "gasolina"],
@@ -31,7 +32,7 @@ CATEGORIAS_BASE = {
     "Ingresos": ["rendimiento", "nómina", "nomina", "salario"],
 }
 # Estas categorías no cuentan como ingreso/gasto en el resumen (mueven plata propia)
-EXCLUIDAS = ("Traslado propio", "Pago de tarjeta")
+EXCLUIDAS = ("Traslado propio", "Pago de tarjeta", "Reversado")
 import os
 NOMBRES_PROPIOS = [n.strip().lower() for n in os.environ.get("OWN_NAMES", "").split(",") if n.strip()]
 PREFIJOS = ("recibiste de ", "enviaste a ", "compra en ", "pago a ", "pagaste ")
@@ -122,11 +123,69 @@ def signo(valor, desc, tipo):
     return v if es_ingreso else -v
 
 
+RE_DIA = re.compile(r"^(\d{1,2})\s+([A-Za-zñÑ]{3})\.?$")
+RE_ANIO = re.compile(r"^(20\d{2})$")
+RE_DINERO = re.compile(r"-?\$[\d.]+,\d{2}")
+
+
 def leer_pdf(datos: bytes, clave: str, tipo: str, reglas):
-    movs = []
+    """Devuelve movimientos. Detecta solo si el PDF es cuenta o tarjeta (ignora la elección del usuario si el texto lo delata)."""
     with pdfplumber.open(io.BytesIO(datos), password=clave or None) as pdf:
-        textos = [(p.extract_text() or "") for p in pdf.pages]
-    todo = "\n".join(textos)
+        todo = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    t = todo.lower()
+    if "cupo definido" in t or "deuda total" in t:
+        tipo = "tarjeta"
+    elif "resumen de tus movimientos" in t:
+        tipo = "cuenta"
+    movs = _leer_tarjeta(todo, reglas) if tipo == "tarjeta" else _leer_cuenta(todo, tipo, reglas)
+    for m in movs:
+        m["origen"] = tipo
+    return movs
+
+
+def _leer_tarjeta(todo, reglas):
+    """Registros de varias líneas: 'DD MES' / 'AAAA' / descripción (puede partirse) / valores."""
+    lineas = [l.strip() for l in todo.splitlines()]
+    movs, i = [], 0
+    while i < len(lineas):
+        m = RE_DIA.match(lineas[i])
+        if not (m and m[2].lower() in MESES and i + 1 < len(lineas) and RE_ANIO.match(lineas[i + 1])):
+            i += 1
+            continue
+        fecha = _fecha(int(lineas[i + 1]), MESES[m[2].lower()], int(m[1]))
+        j, partes = i + 2, []
+        while j < len(lineas) and j - i < 8:
+            partes.append(lineas[j])
+            hay = RE_DINERO.search(lineas[j])
+            j += 1
+            if hay:
+                break
+        texto = " ".join(partes)
+        dinero = RE_DINERO.findall(texto)
+        if dinero and fecha:
+            desc = re.sub(r"Mercad\s+olibre", "Mercadolibre", texto.split(dinero[0])[0]).strip()
+            valor = abs(a_numero(dinero[0]) or 0)
+            d = desc.lower()
+            if d.startswith("pago"):
+                monto, cat = valor, "Pago de tarjeta"
+            elif "reversi" in d or "devoluci" in d:
+                monto, cat = valor, "Devoluciones"
+            else:
+                monto, cat = -valor, categoria(desc, reglas)
+            if valor:
+                movs.append({"fecha": fecha, "descripcion": desc[:200], "monto": monto, "categoria": cat})
+        i = j
+    # una reversión que anula una compra igual del mismo extracto: ambas quedan en "Reversado"
+    for r in [x for x in movs if x["categoria"] == "Devoluciones"]:
+        for c in movs:
+            if c["monto"] == -r["monto"] and c["categoria"] not in ("Reversado", "Pago de tarjeta"):
+                r["categoria"] = c["categoria"] = "Reversado"
+                break
+    return movs
+
+
+def _leer_cuenta(todo, tipo, reglas):
+    movs = []
     m = re.search(r"\b(20\d{2})\b", todo)
     anio = int(m[1]) if m else date.today().year
     for linea in todo.splitlines():

@@ -24,7 +24,7 @@ app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=SECRET, same_site="lax",
                    https_only=os.environ.get("HTTPS_ONLY", "0") == "1", max_age=60 * 60 * 24 * 14)
 tpl = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-CATEGORIAS = list(lector.CATEGORIAS_BASE) + ["Transferencias recibidas", "Transferencias enviadas", "Traslado propio", "Pago de tarjeta", "Arriendo", "Ocio", "Otros"]
+CATEGORIAS = list(lector.CATEGORIAS_BASE) + ["Transferencias recibidas", "Transferencias enviadas", "Traslado propio", "Pago de tarjeta", "Reversado", "Devoluciones", "Arriendo", "Ocio", "Otros"]
 EXC = "categoria NOT IN (" + ",".join(f"'{x}'" for x in lector.EXCLUIDAS) + ")"
 BANCOS = ["Nu", "Bancolombia", "Davivienda", "BBVA", "Nequi", "Otro"]
 
@@ -130,7 +130,7 @@ def dashboard(request: Request, mes: str = ""):
         GROUP BY categoria ORDER BY v DESC""", (mes,)).fetchall()
     pers = c.execute(f"""SELECT u.nombre, COALESCE(SUM(CASE WHEN m.monto>0 THEN m.monto END),0) ing,
         COALESCE(SUM(CASE WHEN m.monto<0 THEN -m.monto END),0) gas FROM movs m JOIN users u ON u.id=m.user_id
-        WHERE substr(m.fecha,1,7)=? AND m.categoria NOT IN ('Traslado propio','Pago de tarjeta') GROUP BY u.id""", (mes,)).fetchall()
+        WHERE substr(m.fecha,1,7)=? AND m.{EXC} GROUP BY u.id""", (mes,)).fetchall()
     hist = c.execute(f"""SELECT substr(fecha,1,7) mes, COALESCE(SUM(CASE WHEN monto>0 THEN monto END),0) ing,
         COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas FROM movs WHERE {EXC} GROUP BY 1 ORDER BY 1 DESC LIMIT 12""").fetchall()
     c.close()
@@ -244,13 +244,13 @@ async def subir(request: Request, archivos: list[UploadFile] = File(...), person
             resultado.append((f.filename, msg, 0, 0)); continue
         nuevos, vistos = 0, {}
         for m in movs:
-            k = f"{persona}|{banco}|{tipo}|{m['fecha']}|{m['descripcion']}|{m['monto']}"
+            k = f"{persona}|{banco}|{m['origen']}|{m['fecha']}|{m['descripcion']}|{m['monto']}"
             vistos[k] = vistos.get(k, 0) + 1
             h = hashlib.sha256(f"{k}|{vistos[k]}".encode()).hexdigest()
             try:
                 c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo)
                     VALUES(?,?,?,?,?,?,?,?,?)""", (persona, banco, m["fecha"], m["descripcion"], m["monto"],
-                                                   m["categoria"], tipo, h, f.filename))
+                                                   m["categoria"], m["origen"], h, f.filename))
                 nuevos += 1
             except sqlite3.IntegrityError:
                 pass  # duplicado: ya estaba cargado
