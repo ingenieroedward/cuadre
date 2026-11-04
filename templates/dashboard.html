@@ -13,6 +13,19 @@
 <div class="card"><div class="hd"><h2>{{ico('users',19)}}Por persona</h2></div>
 {% for x in pers %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small class="ok">+{{x.ing|cop}}</small> <small class="bad">&nbsp;−{{x.gas|cop}}</small></div></div>
 {% else %}<div class="empty">{{ico('users',28)}}<div>Aún no hay movimientos este mes</div></div>{% endfor %}</div></div>
+{% if saldos %}<div class="card"><div class="hd"><h2>{{ico('wallet',19)}}Saldo de tus cuentas</h2><button class="soft" type="button" onclick="dsaldo.showModal()">Ajustar</button></div>
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span class="b" style="font-size:28px;letter-spacing:-1px">{{saldo_total|cop}}</span><span class="sub">estimado hoy</span></div>
+{% for s in saldos %}<div class="li"><span class="av">{{s.nombre|inicial}}</span><div class="t"><b>{{s.banco}} · {{s.nombre}}</b>
+<small>{{'Extracto' if s.fuente=='extracto' else 'Ajuste manual'}} del {{s.fecha[8:]}}/{{s.fecha[5:7]}}: {{s.base|cop}}{% if s.n %} · {{'+' if s.delta>=0}}{{s.delta|cop}} en {{s.n}} movimiento(s){% if s.pend %} ({{s.pend}} pendiente(s)){% endif %}{% endif %}</small></div>
+<div class="n b">{{s.estimado|cop}}</div></div>{% endfor %}
+<p class="sub" style="margin-top:8px">Es una estimación: no incluye los rendimientos diarios ni movimientos que aún no hayas capturado. Si no coincide con tu app, usa Ajustar.</p></div>
+{% else %}<div class="card alert p"><div class="ic">{{ico('wallet',22)}}</div><div class="t"><b>Saldo de tus cuentas</b><div class="sub">Se calcula solo al subir un extracto de Nu. También puedes escribir tu saldo actual.</div></div><button class="soft" type="button" onclick="dsaldo.showModal()">Ajustar</button></div>{% endif %}
+<dialog id="dsaldo"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:17px">Ajustar saldo</h2><button class="ghost" type="button" onclick="dsaldo.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" action="/saldos/ajustar"><p class="sub">Escribe lo que ves hoy en la app del banco. Desde ahora Cuadre le suma los movimientos nuevos.</p>
+<div class="frm row2"><label class="f">Banco<select name="banco">{% for x in medios if x!='Efectivo' %}<option {{'selected' if x=='Nu'}}>{{x}}</option>{% endfor %}</select></label>
+<label class="f">De quién<select name="persona">{% for x in usuarios %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label></div>
+<label class="f">Saldo actual<input name="valor" inputmode="decimal" placeholder="$ 699.205,98" required autocomplete="off"></label>
+<button style="justify-content:center">Guardar saldo</button></form></dialog>
 {% if pres %}<div class="card"><div class="hd"><h2>{{ico('target',19)}}Presupuestos</h2><a href="/avisos" class="sub">Editar</a></div>
 {% for p in pres %}{% set pct=(p.gasto/p.limite*100)|round|int if p.limite else 0 %}
 <div style="padding:8px 0"><div class="pres"><span style="display:flex;gap:10px;align-items:center">{{p.categoria|ico(16,'s')}}<b>{{p.categoria}}</b></span>

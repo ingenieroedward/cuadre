@@ -149,10 +149,16 @@ def _dinero(rx, texto):
 
 
 def info_cuenta(todo):
-    """Totales que Nu imprime en el resumen del extracto: sirven para comprobar que lo leído cuadra."""
+    """Totales y saldos que Nu imprime en el resumen del extracto."""
     entro = _dinero(r"Lo que entr[oó] a tu cuenta\s*\+?\$([\d.]+,\d{2})", todo)
     salio = _dinero(r"Lo que sali[oó] de tu cuenta\s*-?\$([\d.]+,\d{2})", todo)
-    return {"entro": entro, "salio": salio} if entro is not None and salio is not None else None
+    if entro is None or salio is None:
+        return None
+    m = re.search(r"Per[ií]odo\s*\d{1,2}\s*-\s*(\d{1,2})\s+([A-Za-zñÑ]{3})[A-Za-zñÑ]*\s+(20\d{2})", todo, re.I)
+    cierre = _fecha(int(m[3]), MESES.get(m[2].lower(), 0), int(m[1])) if m else None
+    return {"entro": entro, "salio": salio, "cierre": cierre,
+            "inicio": _dinero(r"Tu dinero al inicio del mes\s*\$([\d.]+,\d{2})", todo),
+            "final": _dinero(r"Tu dinero a final del mes\s*\$([\d.]+,\d{2})", todo)}
 
 
 def info_tarjeta(todo):

@@ -27,6 +27,7 @@ import captura
 import correo
 import icons
 import lector
+import saldos
 
 BASE = Path(__file__).parent
 DATA = Path(os.environ.get("DATA_DIR", "./data"))
@@ -138,6 +139,8 @@ def init():
     CREATE TABLE IF NOT EXISTS presupuestos(id INTEGER PRIMARY KEY, categoria TEXT UNIQUE, limite REAL);
     CREATE TABLE IF NOT EXISTS avisos_log(clave TEXT PRIMARY KEY, creado TEXT);
     CREATE TABLE IF NOT EXISTS config(clave TEXT PRIMARY KEY, valor TEXT);
+    CREATE TABLE IF NOT EXISTS saldos(id INTEGER PRIMARY KEY, user_id INTEGER, banco TEXT, fecha TEXT, saldo REAL,
+        corte_id INTEGER, fuente TEXT, UNIQUE(user_id,banco,fecha,fuente));
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -345,12 +348,13 @@ def dashboard(request: Request, mes: str = ""):
             for p in c.execute("SELECT categoria, limite FROM presupuestos ORDER BY categoria")]
     pagos = c.execute("""SELECT p.*, u.nombre FROM pagos_tarjeta p JOIN users u ON u.id=p.user_id
         WHERE p.pagado=0 ORDER BY p.fecha_limite LIMIT 3""").fetchall()
+    lista_saldos = saldos.actuales(c)
     n_prov = c.execute("SELECT COUNT(*) n FROM movs WHERE estado='provisional' AND substr(fecha,1,7)=?", (mes,)).fetchone()["n"]
     n_pk = c.execute("SELECT COUNT(*) n FROM passkeys WHERE user_id=?", (u["id"],)).fetchone()["n"]
     c.close()
     pagos = [dict(p, dias=(date.fromisoformat(p["fecha_limite"]) - date.today()).days) for p in pagos]
     return render(request, "dashboard.html", u=u, mes=mes, tot=tot, cats=[dict(x) for x in cats],
-                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov,
+                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov, saldos=lista_saldos, saldo_total=sum(x['estimado'] for x in lista_saldos),
                   mes_txt=mes_txt(mes), prev=mover_mes(mes, -1), next=mover_mes(mes, 1), mes_txt_f=mes_txt)
 
 
@@ -486,6 +490,9 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                 pago_minimo=excluded.pago_minimo, a_pagar=excluded.a_pagar, deuda_total=excluded.deuda_total""",
                       (persona, banco, info["fecha_limite"], info["pago_minimo"], info["a_pagar"], info["deuda_total"]))
             notas.append(("warn", f"Pago mínimo {avisos.cop(info['pago_minimo'] or 0)}, vence el {info['fecha_limite']}. Te avisaremos antes."))
+        if info and info.get("final") is not None and info.get("cierre"):
+            saldos.guardar(c, persona, banco, info["cierre"], info["final"], saldos.CORTE_EXTRACTO, "extracto")
+            notas.append(("ok", f"Saldo al {info['cierre'][8:]}/{info['cierre'][5:7]}: {avisos.cop(info['final'])}."))
         if info and "entro" in info:
             ent = sum(x["monto"] for x in movs if x["monto"] > 0)
             sal = -sum(x["monto"] for x in movs if x["monto"] < 0)
@@ -857,3 +864,25 @@ def descartar_captura(request: Request, cid: int):
     user(request)
     c = db(); c.execute("UPDATE capturas SET estado='descartado' WHERE id=?", (cid,)); c.commit(); c.close()
     return RedirectResponse("/conectar#revisar", 303)
+
+
+# ---------- Saldos ----------
+@app.post("/saldos/ajustar")
+def ajustar_saldo(request: Request, banco: str = Form(...), persona: int = Form(...), valor: str = Form(...)):
+    user(request)
+    try:
+        v = captura.numero_es(valor)
+    except ValueError:
+        return volver(request, "/", err="Escribe el saldo en números")
+    c = db()
+    corte = c.execute("SELECT COALESCE(MAX(id),0) m FROM movs").fetchone()["m"]
+    saldos.guardar(c, persona, banco, avisos.ahora().date().isoformat(), v, corte, "manual")
+    c.commit(); c.close()
+    return volver(request, "/", msg=f"Saldo de {banco} ajustado a {avisos.cop(v)}")
+
+
+@app.post("/saldos/{sid}/borrar")
+def borrar_saldo(request: Request, sid: int):
+    user(request)
+    c = db(); c.execute("DELETE FROM saldos WHERE id=?", (sid,)); c.commit(); c.close()
+    return RedirectResponse("/", 303)
