@@ -1,7 +1,8 @@
-{% extends "base.html" %}{% block c %}
-<div class="card"><h2>Miembros de la familia</h2>
-<table><tr><th>Nombre</th><th>Usuario</th><th>Rol</th></tr>
-{% for x in users %}<tr><td>{{x.nombre}}</td><td>{{x.username}}</td><td>{{'Administrador' if x.admin else 'Miembro'}}</td></tr>{% endfor %}</table></div>
-{% if u.admin %}<div class="card"><h2>Agregar miembro</h2>{% if error %}<p class="bad">{{error}}</p>{% endif %}
-<form class="row" method="post"><label>Nombre<input name="nombre" required></label><label>Usuario<input name="username" required></label>
+{% extends "base.html" %}{% block t %}Familia · Cuadre{% endblock %}{% block c %}
+<h1>Familia</h1>
+<div class="card wrap"><table><tr><th>Nombre</th><th>Usuario</th><th>Rol</th>{% if u.admin %}<th>Restablecer clave</th>{% endif %}</tr>
+{% for x in users %}<tr><td><b>{{x.nombre}}</b></td><td class="mut">{{x.username}}</td><td><span class="chip">{{'Administrador' if x.admin else 'Miembro'}}</span></td>
+{% if u.admin %}<td><form class="row" method="post" action="/miembros/{{x.id}}/clave" style="flex-wrap:nowrap"><input name="password" type="password" minlength="8" placeholder="Nueva clave" required style="width:150px"><button class="s">Cambiar</button></form></td>{% endif %}</tr>{% endfor %}</table></div>
+{% if u.admin %}<div class="card"><h2>Agregar miembro</h2><form class="row" method="post">
+<label>Nombre<input name="nombre" required></label><label>Usuario<input name="username" autocapitalize="none" required></label>
 <label>Clave (mín. 8)<input name="password" type="password" minlength="8" required></label><button>Agregar</button></form></div>{% endif %}{% endblock %}

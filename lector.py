@@ -140,7 +140,24 @@ def leer_pdf(datos: bytes, clave: str, tipo: str, reglas):
     movs = _leer_tarjeta(todo, reglas) if tipo == "tarjeta" else _leer_cuenta(todo, tipo, reglas)
     for m in movs:
         m["origen"] = tipo
-    return movs
+    return movs, (info_tarjeta(todo) if tipo == "tarjeta" else None)
+
+
+def _dinero(rx, texto):
+    m = re.search(rx, texto, re.I)
+    return a_numero(m[1]) if m else None
+
+
+def info_tarjeta(todo):
+    """Fecha límite, pago mínimo y deuda del extracto de la tarjeta (para los recordatorios)."""
+    m = re.search(r"Fecha l[ií]mite de pago\s*(\d{1,2})\s+([A-Za-zñÑ]{3})[A-Za-zñÑ]*\s+(20\d{2})", todo, re.I)
+    fecha = _fecha(int(m[3]), MESES.get(m[2].lower(), 0), int(m[1])) if m else None
+    if not fecha:
+        return None
+    return {"fecha_limite": fecha,
+            "pago_minimo": _dinero(r"PAGO M[IÍ]NIMO\s*\$([\d.]+,\d{2})", todo),
+            "a_pagar": _dinero(r"Deuda a pagar este mes\s*\$([\d.]+,\d{2})", todo),
+            "deuda_total": _dinero(r"DEUDA TOTAL[^$]*\$([\d.]+,\d{2})", todo)}
 
 
 def _leer_tarjeta(todo, reglas):

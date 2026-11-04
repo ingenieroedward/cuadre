@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block t %}Mi cuenta · Cuadre{% endblock %}{% block c %}
+<h1>Mi cuenta</h1>
+<div class="g2"><div class="card"><h2>Mis datos</h2><form method="post" action="/cuenta/datos" style="display:grid;gap:12px">
+<label>Nombre<input name="nombre" value="{{u.nombre}}" required></label><label>Usuario<input name="username" value="{{u.username}}" autocapitalize="none" required></label><button>Guardar</button></form></div>
+<div class="card"><h2>Cambiar clave</h2><form method="post" action="/cuenta/clave" style="display:grid;gap:12px">
+<label>Clave actual<input name="actual" type="password" autocomplete="current-password" required></label>
+<label>Clave nueva (mínimo 8)<input name="nueva" type="password" minlength="8" autocomplete="new-password" required></label>
+<label>Repite la nueva<input name="nueva2" type="password" minlength="8" autocomplete="new-password" required></label><button>Cambiar clave</button></form></div></div>
+<div class="card"><h2>Más</h2><p><a href="/miembros">👨‍👩‍👧 Familia y miembros</a> &nbsp;·&nbsp; <a href="/logout">Salir</a></p></div>{% endblock %}

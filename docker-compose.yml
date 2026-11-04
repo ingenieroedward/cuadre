@@ -3,11 +3,10 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      SECRET_KEY: ${SECRET_KEY}
-      ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       HTTPS_ONLY: "1"
-      OWN_NAMES: ${OWN_NAMES}
+      TZ: America/Bogota
+      OWN_NAMES: ${OWN_NAMES:-}
+      VAPID_CONTACT: ${VAPID_CONTACT:-mailto:admin@example.com}
     volumes:
       - cuadre_data:/data
     expose:

@@ -1,23 +1,32 @@
-{% extends "base.html" %}{% block c %}
-{% macro cop(v) %}${{ "{:,.0f}".format(v).replace(",", ".") }}{% endmacro %}
-<form class="row card"><label>Mes<input type="month" name="mes" value="{{mes}}" onchange="this.form.submit()"></label></form>
-<div class="grid">
-<div class="card"><div class="mut">Ingresos</div><div class="big ok">{{cop(tot.ing)}}</div></div>
-<div class="card"><div class="mut">Gastos</div><div class="big bad">{{cop(tot.gas)}}</div></div>
-<div class="card"><div class="mut">Balance</div><div class="big {{ 'ok' if tot.ing>=tot.gas else 'bad' }}">{{cop(tot.ing-tot.gas)}}</div></div></div>
-<div class="grid">
-<div class="card"><h2>Gastos por categoría</h2>
-{% if cats %}<canvas id="c1" height="220"></canvas>
-<table style="margin-top:8px">{% for x in cats %}<tr><td>{{x.categoria}}</td><td class="n">{{cop(x.v)}}</td></tr>{% endfor %}</table>
+{% extends "base.html" %}{% block t %}Resumen · Cuadre{% endblock %}{% block c %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin:0">Resumen</h1>
+<form><input type="month" name="mes" value="{{mes}}" onchange="this.form.submit()"></form></div><div style="height:14px"></div>
+{% for p in pagos %}{% if p.dias <= 7 %}
+<div class="card alerta {{'x' if p.dias<=1}}"><div class="e">💳</div><div style="flex:1"><b>Tarjeta {{p.banco}} {{'vence HOY' if p.dias==0 else 'venció hace %d día(s)'|format(-p.dias) if p.dias<0 else 'vence en %d día(s)'|format(p.dias)}}</b>
+<div class="mut">Pago mínimo {{p.pago_minimo|cop}}{% if p.a_pagar %} · sin intereses {{p.a_pagar|cop}}{% endif %} · límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}} · {{p.nombre}}</div></div>
+<form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="s">Ya pagué</button></form></div>{% endif %}{% endfor %}
+<div class="grid" style="margin-bottom:16px">
+<div class="card hero kpi"><div class="l">💰 Ingresos</div><div class="v">{{tot.ing|cop}}</div></div>
+<div class="card kpi"><div class="l">🛍 Gastos</div><div class="v bad">{{tot.gas|cop}}</div></div>
+<div class="card kpi"><div class="l">⚖️ Balance</div><div class="v {{'ok' if tot.ing>=tot.gas else 'bad'}}">{{(tot.ing-tot.gas)|cop}}</div></div></div>
+{% if pres %}<div class="card"><h2>Presupuestos del mes</h2>
+{% for p in pres %}{% set pct=(p.gasto/p.limite*100)|round|int if p.limite else 0 %}
+<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:8px"><b>{{p.categoria|emo}} {{p.categoria}}</b>
+<span class="mut">{{p.gasto|cop}} de {{p.limite|cop}} · <b class="{{'bad' if pct>=100 else 'warn' if pct>=80 else 'ok'}}">{{pct}}%</b></span></div>
+<div class="bar {{'x' if pct>=100 else 'w' if pct>=80}}"><i style="width:{{[pct,100]|min}}%"></i></div></div>{% endfor %}</div>{% endif %}
+<div class="g2"><div class="card"><h2>Gastos por categoría</h2>
+{% if cats %}<div style="max-width:300px;margin:0 auto 10px"><canvas id="c1"></canvas></div>
+<table>{% for x in cats %}<tr><td>{{x.categoria|emo}} {{x.categoria}}</td><td class="n"><b>{{x.v|cop}}</b></td></tr>{% endfor %}</table>
 {% else %}<p class="mut">Sin gastos este mes. <a href="/subir">Sube un extracto</a>.</p>{% endif %}</div>
-<div class="card"><h2>Por persona</h2>
-<table><tr><th>Persona</th><th class="n">Ingresos</th><th class="n">Gastos</th></tr>
-{% for x in pers %}<tr><td>{{x.nombre}}</td><td class="n ok">{{cop(x.ing)}}</td><td class="n bad">{{cop(x.gas)}}</td></tr>{% endfor %}</table></div></div>
-<div class="card"><h2>Últimos meses</h2><canvas id="c2" height="120"></canvas></div>
+<div class="card"><h2>Por persona</h2><table><tr><th>Persona</th><th class="n">Ingresos</th><th class="n">Gastos</th></tr>
+{% for x in pers %}<tr><td><b>{{x.nombre}}</b></td><td class="n ok">{{x.ing|cop}}</td><td class="n bad">{{x.gas|cop}}</td></tr>{% else %}<tr><td colspan="3" class="mut">Aún sin datos.</td></tr>{% endfor %}</table></div></div>
+<div class="card" style="margin-top:16px"><h2>Últimos meses</h2><canvas id="c2" height="130"></canvas></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-const cats={{cats|tojson}},hist={{hist|tojson}};
-const pal=['#820ad1','#b66cf0','#14803c','#e08a00','#c0262d','#2a7fd4','#7a7a7a','#d94f9e'];
-if(cats.length)new Chart(c1,{type:'doughnut',data:{labels:cats.map(x=>x.categoria),datasets:[{data:cats.map(x=>x.v),backgroundColor:pal}]},options:{plugins:{legend:{position:'bottom'}}}});
-new Chart(c2,{type:'bar',data:{labels:hist.map(x=>x.mes),datasets:[{label:'Ingresos',data:hist.map(x=>x.ing),backgroundColor:'#14803c'},{label:'Gastos',data:hist.map(x=>x.gas),backgroundColor:'#c0262d'}]}});
+const cats={{cats|tojson}},hist={{hist|tojson}},css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim();
+Chart.defaults.color=col('--mut');Chart.defaults.font.family='-apple-system,Segoe UI,Roboto,sans-serif';
+const pal=['#9b2ff0','#e0334c','#0e9f6e','#f5a524','#2a8cf0','#e0509e','#14b8a6','#8b8fa3'];
+const fmt=v=>'$'+Math.round(v).toLocaleString('es-CO');
+if(cats.length)new Chart(c1,{type:'doughnut',data:{labels:cats.map(x=>x.categoria),datasets:[{data:cats.map(x=>x.v),backgroundColor:pal,borderColor:col('--card'),borderWidth:3}]},options:{cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}});
+new Chart(c2,{type:'bar',data:{labels:hist.map(x=>x.mes),datasets:[{label:'Ingresos',data:hist.map(x=>x.ing),backgroundColor:'#0e9f6e',borderRadius:6},{label:'Gastos',data:hist.map(x=>x.gas),backgroundColor:'#e0334c',borderRadius:6}]},options:{scales:{y:{ticks:{callback:fmt},grid:{color:col('--bd')}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}}}});
 </script>{% endblock %}

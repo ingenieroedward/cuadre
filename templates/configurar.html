@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block t %}Crear administrador · Cuadre{% endblock %}{% block c %}
+<style>body{background:radial-gradient(1000px 600px at 20% -10%,#b45cff55,transparent),radial-gradient(900px 600px at 110% 10%,#6a05b355,transparent),var(--bg);min-height:100vh}
+.auth{max-width:420px;margin:6vh auto 0}.auth .logo{justify-content:center;font-size:34px;margin:0 0 6px}.auth .logo i{width:56px;height:56px;border-radius:18px;font-size:32px}
+.auth p.s{text-align:center;color:var(--mut);margin:0 0 22px}.auth .card{padding:24px;box-shadow:0 20px 50px rgba(80,10,150,.18)}
+.auth form{display:grid;gap:14px}.auth button{width:100%;padding:13px;font-size:16px}</style>
+<div class="auth"><div class="logo"><i>C</i>Cuadre</div><p class="s">Bienvenido. Crea la cuenta del administrador de la familia.</p>
+<div class="card"><form method="post"><label>Tu nombre<input name="nombre" autofocus required></label>
+<label>Usuario<input name="username" autocapitalize="none" autocomplete="username" required></label>
+<label>Clave (mínimo 8 caracteres)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+<label>Repite la clave<input name="password2" type="password" minlength="8" autocomplete="new-password" required></label>
+<button>Crear y entrar</button></form></div></div>{% endblock %}

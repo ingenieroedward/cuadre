@@ -1,24 +1,22 @@
-{% extends "base.html" %}{% block c %}
-<div class="card"><h2>Agregar ingreso o gasto manual</h2>
-<form class="row" method="post" action="/movimientos/nuevo">
+{% extends "base.html" %}{% block t %}Movimientos · Cuadre{% endblock %}{% block c %}
+<h1>Movimientos</h1>
+<details class="card"><summary style="cursor:pointer;font-weight:700">➕ Agregar ingreso o gasto manual</summary><form class="row" method="post" action="/movimientos/nuevo" style="margin-top:14px">
 <label>Fecha<input type="date" name="fecha" value="{{hoy}}" required></label>
 <label>Tipo<select name="tipo"><option value="gasto">Gasto</option><option value="ingreso">Ingreso</option></select></label>
-<label>Descripción<input name="descripcion" required></label>
-<label>Valor<input name="monto" type="number" step="any" min="0" required></label>
+<label>Descripción<input name="descripcion" required></label><label>Valor<input name="monto" type="number" step="any" min="0" required style="width:130px"></label>
 <label>Categoría<select name="categoria">{% for c in cats %}<option>{{c}}</option>{% endfor %}</select></label>
-<label>Persona<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
-<button>Agregar</button></form></div>
+<label>Persona<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label><button>Agregar</button></form></details>
 <div class="card"><form class="row" method="get">
 <label>Mes<input type="month" name="mes" value="{{f.mes}}"></label>
 <label>Persona<select name="persona"><option value="0">Todas</option>{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==f.persona}}>{{x.nombre}}</option>{% endfor %}</select></label>
 <label>Categoría<select name="cat"><option value="">Todas</option>{% for c in cats %}<option {{'selected' if c==f.cat}}>{{c}}</option>{% endfor %}</select></label>
-<label>Buscar<input name="q" value="{{f.q}}"></label><button>Filtrar</button>
-<a href="/export.csv?mes={{f.mes}}&persona={{f.persona}}&cat={{f.cat}}&q={{f.q}}" style="align-self:center">⬇ CSV</a></form></div>
-<div class="card wrap"><table><tr><th>Fecha</th><th>Persona</th><th>Banco</th><th>Descripción</th><th>Categoría</th><th class="n">Valor</th><th></th></tr>
-{% for r in rows %}<tr><td>{{r.fecha}}</td><td>{{r.nombre}}</td><td class="mut">{{r.banco}}</td><td>{{r.descripcion}}</td>
-<td><form method="post" action="/movimientos/{{r.id}}/categoria" style="display:flex;gap:4px;align-items:center">
-<select name="categoria" onchange="this.form.submit()">{% for c in cats %}<option {{'selected' if c==r.categoria}}>{{c}}</option>{% endfor %}</select>
-<label style="flex-direction:row;align-items:center" title="Aplicar a movimientos parecidos"><input type="checkbox" name="aplicar_similares" value="1"> todos</label></form></td>
-<td class="n {{ 'ok' if r.monto>0 else 'bad' }}">{{ "{:,.0f}".format(r.monto).replace(",", ".") }}</td>
-<td><form method="post" action="/movimientos/{{r.id}}/borrar" onsubmit="return confirm('¿Borrar?')"><button class="g">✕</button></form></td></tr>
-{% else %}<tr><td colspan="7" class="mut">Sin movimientos.</td></tr>{% endfor %}</table></div>{% endblock %}
+<label>Buscar<input name="q" value="{{f.q}}" placeholder="Netflix…"></label><button>Filtrar</button>
+<a href="/export.csv?mes={{f.mes}}&persona={{f.persona}}&cat={{f.cat}}&q={{f.q}}" class="btn s" style="background:var(--soft);color:var(--pri)">⬇ CSV</a></form></div>
+<div class="card wrap"><table><tr><th>Fecha</th><th class="hide-s">Persona</th><th>Descripción</th><th>Categoría</th><th class="n">Valor</th><th></th></tr>
+{% for r in rows %}<tr><td class="mut" style="white-space:nowrap">{{r.fecha[8:]}}/{{r.fecha[5:7]}}<span class="hide-s">/{{r.fecha[:4]}}</span></td><td class="hide-s">{{r.nombre}}<div class="mut" style="font-size:12px">{{r.banco}}</div></td><td>{{r.descripcion}}</td>
+<td><form method="post" action="/movimientos/{{r.id}}/categoria" style="display:flex;gap:6px;align-items:center">
+<select name="categoria" onchange="this.form.submit()" style="padding:6px 8px;max-width:170px">{% for c in cats %}<option {{'selected' if c==r.categoria}}>{{c}}</option>{% endfor %}</select>
+<label style="flex-direction:row;align-items:center;gap:4px;font-weight:500" title="Aplicar a movimientos parecidos"><input type="checkbox" name="aplicar_similares" value="1" style="padding:0">todos</label></form></td>
+<td class="n {{'ok' if r.monto>0 else 'bad'}}"><b>{{r.monto|cop}}</b></td>
+<td><form method="post" action="/movimientos/{{r.id}}/borrar" onsubmit="return confirm('¿Borrar este movimiento?')"><button class="g">✕</button></form></td></tr>
+{% else %}<tr><td colspan="6" class="mut">Sin movimientos.</td></tr>{% endfor %}</table></div>{% endblock %}

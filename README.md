@@ -1,26 +1,29 @@
 # Cuadre — finanzas de la familia
 
-App web (FastAPI + SQLite) para subir extractos PDF de varios bancos, ver resumen por mes/persona/categoría
-y agregar ingresos/gastos manuales. Login por miembro.
+App web (FastAPI + SQLite), instalable en el celular (PWA): sube extractos PDF de varios bancos, resumen por
+mes/persona/categoría, ingresos y gastos manuales, presupuestos, recordatorios y avisos push.
 
 ## Despliegue en Dokploy
-1. Sube esta carpeta (`app/`) a un repositorio Git (privado).
-2. En Dokploy: Create Service > **Compose** > conecta el repo, ruta `docker-compose.yml`.
-3. Variables de entorno: `SECRET_KEY` (cadena larga aleatoria), `ADMIN_USER`, `ADMIN_PASSWORD`.
-4. Pestaña Domains: tu dominio, puerto `8000`, HTTPS (Let's Encrypt) activado.
-5. Los datos viven en el volumen `cuadre_data` (/data/finanzas.db). Haz respaldo de ese volumen.
+1. Servicio **Compose** apuntando a este repositorio (`docker-compose.yml`).
+2. Variable opcional: `OWN_NAMES=edward david diaz padilla,edwsystem` (tus nombres en transferencias propias; se marcan "Traslado propio").
+3. Dominio con HTTPS (necesario para los avisos push) al puerto `8000`.
+4. Abre el sitio: la primera vez pide **crear el administrador** (usuario y clave). Nada de usuarios en variables de entorno.
+5. Los datos (base de datos, llave de sesión y llaves de avisos) viven en el volumen `cuadre_data`. Respáldalo.
+
+## Claves
+Cada persona cambia su clave en **Yo → Mi cuenta**. El administrador restablece las de otros en **Familia**.
+
+## Avisos push
+- En **Avisos**, pulsa "Activar avisos" en cada celular. iPhone: Safari → Compartir → *Añadir a pantalla de inicio*, abrir desde ahí.
+- Tarjeta: 3 días antes, 1 día antes y el día del límite (se lee del extracto de la tarjeta).
+- Recordatorios mensuales de la familia, recordatorio de subir extractos, y presupuestos por categoría (80 % y 100 %).
+- Zona horaria: `TZ` (por defecto America/Bogota).
 
 ## Local
     pip install -r requirements.txt
-    ADMIN_PASSWORD=algo-largo uvicorn main:app --reload
+    uvicorn main:app --reload
 
 ## Notas
-- La clave del PDF (cédula) se usa solo para abrirlo y no se guarda; el PDF no se guarda, solo los movimientos.
-- Subir dos veces el mismo extracto no duplica movimientos.
-- El lector es genérico (líneas con fecha + valor). Para ajustar un banco, edita `lector.py`.
-- Cambiar la categoría de un movimiento con "todos" marcado crea una regla para los parecidos.
-
-## Variable OWN_NAMES
-Nombres (en minúscula, separados por coma) con los que apareces en tus propias transferencias, por ejemplo
-`OWN_NAMES=edward david diaz padilla,edwsystem`. Esos movimientos se marcan como "Traslado propio" y no
-cuentan como ingreso ni gasto. "Pagaste tu tarjeta" tampoco cuenta (la compra se cuenta al leer la tarjeta).
+- La clave del PDF (cédula) solo abre el archivo; no se guarda. Tampoco se guarda el PDF.
+- Subir dos veces el mismo extracto no duplica movimientos. Se detecta solo si es cuenta o tarjeta.
+- El lector es genérico más reglas de Nu (cuenta y tarjeta). Para otros bancos, edita `lector.py`.

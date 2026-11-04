@@ -1,5 +1,10 @@
-{% extends "base.html" %}{% block c %}
-<div class="card" style="max-width:360px;margin:60px auto"><h1>Cuadre</h1>
-{% if error %}<p class="bad">{{error}}</p>{% endif %}
-<form method="post" style="display:grid;gap:10px"><input name="username" placeholder="Usuario" autofocus required>
-<input name="password" type="password" placeholder="Clave" required><button>Entrar</button></form></div>{% endblock %}
+{% extends "base.html" %}{% block t %}Entrar · Cuadre{% endblock %}{% block c %}
+<style>body{background:radial-gradient(1000px 600px at 20% -10%,#b45cff55,transparent),radial-gradient(900px 600px at 110% 10%,#6a05b355,transparent),var(--bg);min-height:100vh}
+.auth{max-width:400px;margin:7vh auto 0}.auth .logo{justify-content:center;font-size:34px;margin:0 0 6px}.auth .logo i{width:56px;height:56px;border-radius:18px;font-size:32px}
+.auth p.s{text-align:center;color:var(--mut);margin:0 0 22px}.auth .card{padding:24px;box-shadow:0 20px 50px rgba(80,10,150,.18)}
+.auth form{display:grid;gap:14px}.auth button{width:100%;padding:13px;font-size:16px}.pw{position:relative}.pw input{width:100%;padding-right:48px}
+.pw b{position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;padding:8px 10px;font-size:18px;user-select:none}</style>
+<div class="auth"><div class="logo"><i>C</i>Cuadre</div><p class="s">Las cuentas de la familia, claras</p>
+<div class="card"><form method="post"><label>Usuario<input name="username" autocomplete="username" autocapitalize="none" autofocus required></label>
+<label>Clave<span class="pw"><input id="p" name="password" type="password" autocomplete="current-password" required><b onclick="p.type=p.type=='password'?'text':'password'">👁</b></span></label>
+<button>Entrar</button></form></div></div>{% endblock %}

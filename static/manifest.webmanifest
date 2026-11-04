@@ -1,0 +1,5 @@
+{"name":"Cuadre","short_name":"Cuadre","description":"Las cuentas de la familia, claras","start_url":"/","scope":"/","display":"standalone",
+ "background_color":"#0f0c18","theme_color":"#820ad1",
+ "icons":[{"src":"/static/icon-192.png","sizes":"192x192","type":"image/png"},
+          {"src":"/static/icon-512.png","sizes":"512x512","type":"image/png"},
+          {"src":"/static/icon-maskable.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}
