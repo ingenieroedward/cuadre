@@ -1,5 +1,6 @@
 """Cuentas dinámicas: tipo (ahorros, corriente, bajo monto), exención del 4x1000 y estimado del impuesto."""
-TIPOS = {"ahorros": "Cuenta de ahorros", "corriente": "Cuenta corriente", "bajo_monto": "Depósito de bajo monto"}
+TIPOS = {"ahorros": "Cuenta de ahorros", "corriente": "Cuenta corriente", "bajo_monto": "Depósito de bajo monto",
+         "tarjeta": "Tarjeta de crédito"}
 RESERVADOS = ("", "Manual", "Efectivo", "Otro")
 GMF = 0.004          # 4 x 1000
 
@@ -57,9 +58,15 @@ def listado(c, mes, saldos_actuales):
         salidas = c.execute("""SELECT COALESCE(SUM(-monto),0) v, COUNT(*) n FROM movs WHERE user_id=? AND banco=? AND monto<0
             AND origen!='tarjeta' AND substr(fecha,1,7)=?""", (q["user_id"], q["nombre"], mes)).fetchone()
         total = c.execute("SELECT COUNT(*) n FROM movs WHERE user_id=? AND banco=?", (q["user_id"], q["nombre"])).fetchone()["n"]
+        cobros = c.execute("""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE user_id=? AND banco=? AND categoria='Intereses y cobros'
+            AND monto<0 AND substr(fecha,1,7)=?""", (q["user_id"], q["nombre"], mes)).fetchone()["v"]
         s = saldo.get((q["user_id"], q["nombre"]))
-        out.append({"q": q, "salidas": salidas["v"], "gmf": 0.0 if q["exenta"] else salidas["v"] * GMF,
-                    "saldo": s["estimado"] if s else None, "movs": total})
+        gmf = 0.0 if (q["exenta"] or q["tipo"] == "tarjeta") else salidas["v"] * GMF
+        manejo = q["cuota_manejo"] or 0.0
+        # si el extracto ya trae el cobro, se usa el real; si no, la cuota configurada
+        costo = gmf + (cobros if cobros > 0 else manejo)
+        out.append({"q": q, "salidas": salidas["v"], "gmf": gmf, "saldo": s["estimado"] if s else None, "movs": total,
+                    "manejo": manejo, "cobros": cobros, "costo": costo})
     return out
 
 

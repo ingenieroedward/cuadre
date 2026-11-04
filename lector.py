@@ -29,7 +29,7 @@ CATEGORIAS_BASE = {
     "Servicios": ["claro", "movistar", "tigo", "enel", "epm", "vanti", "acueducto", "etb", "surtigas", "gases"],
     "Hogar": ["dollarcity", "homecenter", "ikea"],
     "Deudas": [],
-    "Intereses y cobros": ["interes", "interés", "cuota de manejo", "comision", "comisión"],
+    "Intereses y cobros": ["interes", "interés", "cuota de manejo", "cuota manejo", "comision", "comisión", "cargo por", "gmf"],
     "Ingresos": ["rendimiento", "nómina", "nomina", "salario"],
 }
 # Estas categorías no cuentan como ingreso/gasto en el resumen (mueven plata propia)
@@ -175,13 +175,18 @@ def info_tarjeta(todo):
     if not fecha:
         return None
     din = r"\$\s*([\d.]+,\d{2})"
-    return {"fecha_limite": fecha,
-            "cupo": _dinero(r"cupo definido.{0,60}?" + din, t),
-            "usado": _dinero(r"\bUsado\b.{0,40}?" + din, t),
-            "disponible": _dinero(r"\bDisponible\b.{0,40}?" + din, t),
+    cupo = _dinero(r"cupo definido.{0,60}?" + din, t)
+    usado = _dinero(r"\bUsado\b.{0,40}?" + din, t)
+    disponible = _dinero(r"\bDisponible\b.{0,40}?" + din, t)
+    if cupo is not None and usado is not None:
+        disponible = cupo - usado          # si el PDF pone las etiquetas juntas y luego los valores, "Disponible" puede leerse mal
+    return {"fecha_limite": fecha, "cupo": cupo, "usado": usado, "disponible": disponible,
             "pago_minimo": _dinero(r"PAGO M[IÍ]NIMO.{0,60}?" + din, t),
             "a_pagar": _dinero(r"Deuda a pagar este mes.{0,60}?" + din, t),
-            "deuda_total": _dinero(r"DEUDA TOTAL.{0,100}?" + din, t)}
+            "deuda_total": _dinero(r"DEUDA TOTAL.{0,100}?" + din, t),
+            "costos": {k: _dinero(rx + r"\s*\+?\s*" + din, t) for k, rx in (
+                ("Intereses", r"\bIntereses\b"), ("Comisiones por avances", r"Comisiones de avances"),
+                ("Comisiones por servicio", r"Comisiones por servicio"), ("Cargos por conversión", r"Cargos por conversi[oó]n"))}}
 
 
 def _mov_tarjeta(fecha, texto, reglas):

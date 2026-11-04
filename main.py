@@ -160,7 +160,7 @@ def init():
                               ("users", "token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
                               ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
                               ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
-                              ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
+                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
@@ -532,6 +532,11 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                 cupo=excluded.cupo, usado=excluded.usado, disponible=excluded.disponible""",
                       (persona, banco, info["fecha_limite"], info["pago_minimo"], info["a_pagar"], info["deuda_total"],
                        info.get("cupo"), info.get("usado"), info.get("disponible")))
+            costos = {k: v for k, v in (info.get("costos") or {}).items() if v}
+            if costos:
+                notas.append(("warn", "Costos de la tarjeta este corte: " + ", ".join(f"{k.lower()} {avisos.cop(v)}" for k, v in costos.items()) + "."))
+            elif info.get("costos"):
+                notas.append(("ok", "Sin intereses ni comisiones este corte."))
             nv, ac = deudas.sincronizar_tarjeta(c, persona, banco, movs, info["fecha_limite"])
             if nv or ac:
                 notas.append(("ok", f"Compras a cuotas: {nv} nueva(s) y {ac} actualizada(s) en Deudas."))
@@ -1111,25 +1116,29 @@ def pagina_cuentas(request: Request):
     users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
     c.close()
     return render(request, "cuentas.html", u=u, lista=lista, usuarios_c=users, tipos=cuentas.TIPOS, aviso=cuentas.avisos_exencion(lista),
-                  gmf_total=sum(x["gmf"] for x in lista))
+                  gmf_total=sum(x["gmf"] for x in lista), costo_total=sum(x["costo"] for x in lista))
 
 
-def _cuenta_form(nombre, entidad, tipo, exenta, ultimos4):
+def _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, manejo=""):
+    try:
+        mj = abs(captura.numero_es(manejo)) if manejo.strip() else 0.0
+    except ValueError:
+        mj = 0.0
     return (nombre.strip()[:60], (entidad.strip() or nombre.strip())[:60], tipo if tipo in cuentas.TIPOS else "ahorros",
-            1 if exenta else 0, "".join(ch for ch in ultimos4 if ch.isdigit())[:4])
+            1 if exenta else 0, "".join(ch for ch in ultimos4 if ch.isdigit())[:4], mj)
 
 
 @app.post("/cuentas")
 def crear_cuenta(request: Request, nombre: str = Form(...), entidad: str = Form(""), tipo: str = Form("ahorros"),
-                 exenta: str = Form(""), ultimos4: str = Form(""), persona: int = Form(0)):
+                 exenta: str = Form(""), ultimos4: str = Form(""), cuota_manejo: str = Form(""), persona: int = Form(0)):
     u = user(request)
-    n, e, t, ex, l4 = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4)
+    n, e, t, ex, l4, mj = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, cuota_manejo)
     if not n or n in cuentas.RESERVADOS:
         return volver(request, "/cuentas", err="Ponle un nombre a la cuenta")
     c = db()
     try:
-        c.execute("INSERT INTO cuentas(user_id,nombre,entidad,tipo,exenta,ultimos4) VALUES(?,?,?,?,?,?)",
-                  (persona or u["id"], n, e, t, ex, l4))
+        c.execute("INSERT INTO cuentas(user_id,nombre,entidad,tipo,exenta,ultimos4,cuota_manejo) VALUES(?,?,?,?,?,?,?)",
+                  (persona or u["id"], n, e, t, ex, l4, mj))
         c.commit()
     except sqlite3.IntegrityError:
         c.close()
@@ -1140,16 +1149,16 @@ def crear_cuenta(request: Request, nombre: str = Form(...), entidad: str = Form(
 
 @app.post("/cuentas/{cid}")
 def editar_cuenta(request: Request, cid: int, nombre: str = Form(...), entidad: str = Form(""), tipo: str = Form("ahorros"),
-                  exenta: str = Form(""), ultimos4: str = Form("")):
+                  exenta: str = Form(""), ultimos4: str = Form(""), cuota_manejo: str = Form("")):
     user(request)
-    n, e, t, ex, l4 = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4)
+    n, e, t, ex, l4, mj = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, cuota_manejo)
     c = db()
     viejo = c.execute("SELECT * FROM cuentas WHERE id=?", (cid,)).fetchone()
     if not viejo or not n:
         c.close()
         return volver(request, "/cuentas", err="No se encontró la cuenta")
     try:
-        c.execute("UPDATE cuentas SET nombre=?, entidad=?, tipo=?, exenta=?, ultimos4=? WHERE id=?", (n, e, t, ex, l4, cid))
+        c.execute("UPDATE cuentas SET nombre=?, entidad=?, tipo=?, exenta=?, ultimos4=?, cuota_manejo=? WHERE id=?", (n, e, t, ex, l4, mj, cid))
         if n != viejo["nombre"]:     # el nombre es la llave de los movimientos y saldos de esa cuenta
             for tabla in ("movs", "saldos", "pagos_tarjeta"):
                 c.execute(f"UPDATE {tabla} SET banco=? WHERE user_id=? AND banco=?", (n, viejo["user_id"], viejo["nombre"]))
