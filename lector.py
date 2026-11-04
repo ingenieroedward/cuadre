@@ -140,12 +140,19 @@ def leer_pdf(datos: bytes, clave: str, tipo: str, reglas):
     movs = _leer_tarjeta(todo, reglas) if tipo == "tarjeta" else _leer_cuenta(todo, tipo, reglas)
     for m in movs:
         m["origen"] = tipo
-    return movs, (info_tarjeta(todo) if tipo == "tarjeta" else None)
+    return movs, (info_tarjeta(todo) if tipo == "tarjeta" else info_cuenta(todo))
 
 
 def _dinero(rx, texto):
     m = re.search(rx, texto, re.I)
     return a_numero(m[1]) if m else None
+
+
+def info_cuenta(todo):
+    """Totales que Nu imprime en el resumen del extracto: sirven para comprobar que lo leído cuadra."""
+    entro = _dinero(r"Lo que entr[oó] a tu cuenta\s*\+?\$([\d.]+,\d{2})", todo)
+    salio = _dinero(r"Lo que sali[oó] de tu cuenta\s*-?\$([\d.]+,\d{2})", todo)
+    return {"entro": entro, "salio": salio} if entro is not None and salio is not None else None
 
 
 def info_tarjeta(todo):

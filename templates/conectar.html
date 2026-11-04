@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% block t %}Captura automática · Cuadre{% endblock %}{% block c %}
+<div class="ph"><div><h1>Captura automática</h1><p>Que los movimientos lleguen solos, sin esperar el extracto</p></div></div>
+<div class="stack">
+<div class="card alert p"><div class="ic">{{ico('info',22)}}</div><div class="t"><b>Cómo funciona</b><div class="sub">Lo que se captura aquí queda como <span class="pill warn">Pendiente</span>. Cuando subes el extracto del banco, Cuadre lo empareja por valor, banco y fecha, y lo deja confirmado sin duplicar.</div></div></div>
+
+{% if revisar %}<div class="card" id="revisar"><div class="hd"><h2>{{ico('alert',19)}}Por revisar</h2><span class="pill warn">{{revisar|length}}</span></div>
+<p class="sub" style="margin:-6px 0 6px">Vi un valor pero no supe si fue un gasto o un ingreso.</p>
+{% for k in revisar %}<div class="li"><div class="t"><b>{{k.monto|cop}} · {{k.banco}}</b><small style="white-space:normal">{{k.texto[:140]}}</small></div>
+<form method="post" action="/capturas/{{k.id}}/resolver" style="display:flex;gap:6px"><button name="tipo" value="gasto" class="soft">Gasto</button><button name="tipo" value="ingreso" class="soft">Ingreso</button></form>
+<form method="post" action="/capturas/{{k.id}}/descartar"><button class="ghost del" title="Descartar">{{ico('x',17)}}</button></form></div>{% endfor %}</div>{% endif %}
+
+<div class="g2">
+<div class="card"><div class="hd"><h2>{{ico('lock',19)}}Tu enlace personal</h2></div>
+<p class="sub" style="margin:-6px 0 10px">Lo usan los atajos del celular para enviar movimientos a tu cuenta. No lo compartas.</p>
+<label class="f">Dirección<div class="copy"><code id="u1">{{url}}</code><button class="soft" type="button" onclick="navigator.clipboard.writeText(u1.textContent)">Copiar</button></div></label>
+<label class="f" style="margin-top:10px">Token<div class="copy"><code id="u2">{{token}}</code><button class="soft" type="button" onclick="navigator.clipboard.writeText(u2.textContent)">Copiar</button></div></label>
+<form method="post" action="/conectar/token" onsubmit="return confirm('Los atajos que ya hiciste dejarán de funcionar hasta que cambies el token. ¿Continuar?')" style="margin-top:12px"><button class="line">Crear token nuevo</button></form></div>
+<div class="card"><div class="hd"><h2>{{ico('file',19)}}Probar con un texto</h2></div>
+<p class="sub" style="margin:-6px 0 10px">Pega aquí el texto de una notificación o de un correo de tu banco y mira cómo lo entiende Cuadre.</p>
+<form class="frm" method="post" action="/conectar/probar"><textarea name="texto" rows="3" placeholder="Compraste $63.634 en Anthropic con tu tarjeta de débito" required></textarea>
+<div class="frm row"><label class="f">Banco (opcional)<select name="banco"><option value="">Detectar</option>{% for b in ['Nu','Nequi','Bancolombia','Davivienda','BBVA','Daviplata','Otro'] %}<option>{{b}}</option>{% endfor %}</select></label><button>Probar</button></div></form></div></div>
+
+<div class="card"><div class="hd"><h2>{{ico('phone',19)}}Notificaciones del celular</h2></div>
+<details class="how" open><summary>{{ico('phone',18)}}Android: Nu, Nequi y los demás, automático</summary><ol>
+<li>Instala <b>MacroDroid</b> (o Tasker) desde Play Store y dale permiso para leer notificaciones.</li>
+<li>Crea una macro con el disparador <b>Notificación recibida</b>, eligiendo la app del banco (Nu, Nequi, Bancolombia…).</li>
+<li>Acción: <b>Solicitud HTTP</b>, método POST, a la dirección de arriba, con el encabezado <code>Authorization: Bearer TU_TOKEN</code> y el cuerpo en JSON:
+<pre class="code">{"texto":"[texto de la notificación]","titulo":"[título de la notificación]","banco":"Nu"}</pre>
+En el lugar de los corchetes pon las variables de texto y título de la notificación que ofrece la app.</li>
+<li>Haz una compra pequeña y revisa en Movimientos: debe aparecer como Pendiente.</li></ol></details>
+<details class="how" open><summary>{{ico('phone',18)}}iPhone: anotar en un toque</summary><ol>
+<li>iOS no deja que una app lea las notificaciones de otra, así que no se puede automatizar Nu en iPhone. Lo más rápido es anotar el movimiento en 3 toques.</li>
+<li>Abre Cuadre en Safari, toca Compartir y luego <b>Añadir a pantalla de inicio</b>. Dentro de la app, el botón <b>+</b> abre la captura rápida en cualquier pantalla.</li>
+<li>Para anotar por voz: en la app Atajos crea uno que pida un número y abra la dirección <code>{{url|replace('/api/captura','/rapido')}}?monto=<i>número</i></code>. Ponle un nombre como "Anotar gasto" y llámalo con Siri.</li>
+<li>Si pagas con una tarjeta añadida a Apple Wallet, en Atajos puedes crear una automatización de tipo <b>Transacción</b> que abra esa misma dirección con el valor y el comercio. Depende de que tu banco admita Apple Pay.</li></ol></details></div>
+
+<div class="card"><div class="hd"><h2>{{ico('file',19)}}Correos de alerta de los bancos</h2></div>
+<p class="sub" style="margin:-6px 0 8px">Nequi manda un correo por cada pago y por cada dinero que recibes. Si tu banco también lo hace, Cuadre los lee y los registra.</p>
+{% if imap %}<div class="flash m" style="margin:0 0 12px">{{ico('check')}}Buzón conectado: {{buzon}}{% if correo_estado %} · última revisión: {{correo_estado}}{% endif %}</div>
+<ol class="sub" style="margin:0 0 0 18px;padding:0"><li>En tu Gmail crea un filtro con los remitentes del banco (por ejemplo <code>notificaciones@nequi.com.co</code>).</li>
+<li>Con la acción <b>Reenviar a</b> <code>{{buzon.replace('@','+'+usuario+'@') if buzon else ''}}</code>. El texto después del <b>+</b> es tu usuario, para saber de quién es cada movimiento.</li>
+<li>Gmail pide confirmar la dirección de reenvío una sola vez, con un código que llega a ese buzón.</li></ol>
+{% else %}<div class="flash e" style="margin:0 0 12px">{{ico('info')}}Falta conectar un buzón. Lo hace quien administra el servidor.</div>
+<ol class="sub" style="margin:0 0 0 18px;padding:0"><li>Crea un correo solo para esto (por ejemplo un Gmail nuevo) y activa una <b>contraseña de aplicación</b>.</li>
+<li>En Dokploy agrega las variables <code>IMAP_HOST</code> (imap.gmail.com), <code>IMAP_USER</code> y <code>IMAP_PASSWORD</code> y reinicia.</li>
+<li>Vuelve aquí: te mostrará la dirección a la que reenviar y los pasos del filtro.</li></ol>{% endif %}</div>
+
+<div class="card flush"><div class="hd" style="padding:18px 20px 0"><h2>{{ico('clock',19)}}Últimas capturas</h2></div>
+{% for k in recientes_c %}<div class="li"><span class="chip s" style="--c:{{'#0d9b6a' if k.estado=='creado' else '#c98200' if k.estado=='por_revisar' else '#868e96'}}">{{ico('check' if k.estado=='creado' else 'alert' if k.estado=='por_revisar' else 'x',16)}}</span>
+<div class="t"><b>{{k.descripcion or 'Sin movimiento'}}</b><small>{{k.nombre}} · {{k.fuente}} · {{k.creado[:16].replace('T',' ')}} · {{'ignorado' if k.estado=='ignorado' else k.estado}}</small></div><div class="n b">{{(k.monto or 0)|cop if k.monto}}</div></div>
+{% else %}<div class="empty">{{ico('clock',28)}}<div>Aún no ha llegado ninguna captura</div></div>{% endfor %}</div></div>{% endblock %}

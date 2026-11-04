@@ -23,6 +23,8 @@ from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, PublicKeyC
                                       ResidentKeyRequirement, UserVerificationRequirement)
 
 import avisos
+import captura
+import correo
 import icons
 import lector
 
@@ -56,9 +58,18 @@ async def lifespan(app):
             except Exception as e:
                 print("avisos:", e, flush=True)
             await asyncio.sleep(900)
-    t = asyncio.create_task(ciclo())
+    async def ciclo_correo():
+        while True:
+            try:
+                if correo.configurado():
+                    await asyncio.to_thread(correo.revisar_buzon, db)
+            except Exception as e:
+                print("correo:", e, flush=True)
+            await asyncio.sleep(300)
+    tareas = [asyncio.create_task(ciclo()), asyncio.create_task(ciclo_correo())]
     yield
-    t.cancel()
+    for t in tareas:
+        t.cancel()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -130,6 +141,13 @@ def init():
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
+    c.execute("""CREATE TABLE IF NOT EXISTS capturas(id INTEGER PRIMARY KEY, user_id INTEGER, fuente TEXT, texto TEXT, estado TEXT,
+        monto REAL, descripcion TEXT, fecha TEXT, banco TEXT, mov_id INTEGER, creado TEXT)""")
+    for tabla, col, defin in [("movs", "estado", "TEXT DEFAULT 'confirmado'"), ("movs", "fuente", "TEXT DEFAULT 'extracto'"),
+                              ("users", "token", "TEXT")]:
+        if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
+            c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
+    c.commit()
     # Compatibilidad: si defines ADMIN_PASSWORD se crea el primer admin al arrancar.
     # Si no, la primera visita muestra la pantalla "Crear administrador" (recomendado).
     if not c.execute("SELECT 1 FROM users").fetchone() and os.environ.get("ADMIN_PASSWORD"):
@@ -176,6 +194,17 @@ def render(request, name, **ctx):
     ctx.setdefault("u", None)
     ctx.setdefault("msg", request.query_params.get("msg"))
     ctx.setdefault("err", request.query_params.get("err"))
+    if ctx["u"]:
+        c = db()
+        ctx["recientes"] = [r["descripcion"] for r in c.execute(
+            "SELECT descripcion, COUNT(*) n FROM movs WHERE monto<0 GROUP BY descripcion ORDER BY n DESC, MAX(fecha) DESC LIMIT 30")]
+        ctx["usuarios"] = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+        ctx["n_revisar"] = c.execute("SELECT COUNT(*) n FROM capturas WHERE estado='por_revisar'").fetchone()["n"]
+        c.close()
+        ctx.setdefault("pre", {})
+        ctx["medios"] = ["Efectivo"] + BANCOS
+        ctx["cats_q"] = CATEGORIAS
+        ctx["hoy_iso"] = avisos.ahora().date().isoformat()
     return tpl.TemplateResponse(request, name, ctx)
 
 
@@ -316,11 +345,12 @@ def dashboard(request: Request, mes: str = ""):
             for p in c.execute("SELECT categoria, limite FROM presupuestos ORDER BY categoria")]
     pagos = c.execute("""SELECT p.*, u.nombre FROM pagos_tarjeta p JOIN users u ON u.id=p.user_id
         WHERE p.pagado=0 ORDER BY p.fecha_limite LIMIT 3""").fetchall()
+    n_prov = c.execute("SELECT COUNT(*) n FROM movs WHERE estado='provisional' AND substr(fecha,1,7)=?", (mes,)).fetchone()["n"]
     n_pk = c.execute("SELECT COUNT(*) n FROM passkeys WHERE user_id=?", (u["id"],)).fetchone()["n"]
     c.close()
     pagos = [dict(p, dias=(date.fromisoformat(p["fecha_limite"]) - date.today()).days) for p in pagos]
     return render(request, "dashboard.html", u=u, mes=mes, tot=tot, cats=[dict(x) for x in cats],
-                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0),
+                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov,
                   mes_txt=mes_txt(mes), prev=mover_mes(mes, -1), next=mover_mes(mes, 1), mes_txt_f=mes_txt)
 
 
@@ -365,8 +395,8 @@ def nuevo(request: Request, bg: BackgroundTasks, fecha: str = Form(...), descrip
     m = -abs(monto) if tipo == "gasto" else abs(monto)
     h = hashlib.sha256(f"manual{secrets.token_hex(8)}".encode()).hexdigest()
     c = db()
-    c.execute("INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash) VALUES(?,?,?,?,?,?,?,?)",
-              (persona, "Manual", fecha, descripcion.strip()[:200], m, categoria, "manual", h))
+    c.execute("INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente) VALUES(?,?,?,?,?,?,?,?,?,?)",
+              (persona, "Manual", fecha, descripcion.strip()[:200], m, categoria, "manual", h, "confirmado", "manual"))
     c.commit(); c.close()
     bg.add_task(avisos.revisar_presupuestos, db, PEM)
     return RedirectResponse("/movimientos", 303)
@@ -428,34 +458,45 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
     for f in archivos:
         datos = await f.read()
         if len(datos) > MAX_MB * 1024 * 1024:
-            resultado.append((f.filename, "Archivo demasiado grande", 0, 0, None)); continue
+            resultado.append({"f": f.filename, "e": "Archivo demasiado grande", "l": 0, "n": 0, "notas": []}); continue
         try:
             movs, info = lector.leer_pdf(datos, clave, tipo, reglas)
         except Exception as e:
             nombre = type(e).__name__.lower()
             msg = ("Clave incorrecta (o PDF no legible)" if "password" in nombre or "pdfminer" in nombre
                    or "password" in str(e).lower() else f"No se pudo leer ({type(e).__name__})")
-            resultado.append((f.filename, msg, 0, 0, None)); continue
-        nuevos, vistos = 0, {}
+            resultado.append({"f": f.filename, "e": msg, "l": 0, "n": 0, "notas": []}); continue
+        nuevos, vistos, concil = 0, {}, 0
         for m in movs:
             k = f"{persona}|{banco}|{m['origen']}|{m['fecha']}|{m['descripcion']}|{m['monto']}"
             vistos[k] = vistos.get(k, 0) + 1
             h = hashlib.sha256(f"{k}|{vistos[k]}".encode()).hexdigest()
             try:
-                c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo)
-                    VALUES(?,?,?,?,?,?,?,?,?)""", (persona, banco, m["fecha"], m["descripcion"], m["monto"],
+                c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo,estado,fuente)
+                    VALUES(?,?,?,?,?,?,?,?,?,'confirmado','extracto')""", (persona, banco, m["fecha"], m["descripcion"], m["monto"],
                                                    m["categoria"], m["origen"], h, f.filename))
                 nuevos += 1
+                concil += 1 if captura.conciliar(c, persona, banco, m["fecha"], m["monto"]) else 0
             except sqlite3.IntegrityError:
                 pass  # duplicado: ya estaba cargado
-        aviso = None
-        if info:
+        notas = []
+        if info and "fecha_limite" in info:
             c.execute("""INSERT INTO pagos_tarjeta(user_id,banco,fecha_limite,pago_minimo,a_pagar,deuda_total)
                 VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,banco,fecha_limite) DO UPDATE SET
                 pago_minimo=excluded.pago_minimo, a_pagar=excluded.a_pagar, deuda_total=excluded.deuda_total""",
                       (persona, banco, info["fecha_limite"], info["pago_minimo"], info["a_pagar"], info["deuda_total"]))
-            aviso = f"Pago mínimo {avisos.cop(info['pago_minimo'] or 0)}, vence el {info['fecha_limite']}. Te avisaremos antes."
-        resultado.append((f.filename, "OK" if movs else "Sin movimientos reconocidos", len(movs), nuevos, aviso))
+            notas.append(("warn", f"Pago mínimo {avisos.cop(info['pago_minimo'] or 0)}, vence el {info['fecha_limite']}. Te avisaremos antes."))
+        if info and "entro" in info:
+            ent = sum(x["monto"] for x in movs if x["monto"] > 0)
+            sal = -sum(x["monto"] for x in movs if x["monto"] < 0)
+            if abs(ent - info["entro"]) < 1 and abs(sal - info["salio"]) < 1:
+                notas.append(("ok", f"Cuadra con el extracto: entró {avisos.cop(info['entro'])} y salió {avisos.cop(info['salio'])}."))
+            else:
+                notas.append(("bad", f"No cuadra: el extracto dice entró {avisos.cop(info['entro'])} y salió {avisos.cop(info['salio'])}; "
+                                     f"Cuadre leyó {avisos.cop(ent)} y {avisos.cop(sal)}. Revisa si falta alguna línea."))
+        if concil:
+            notas.append(("ok", f"{concil} movimientos que ya habías capturado quedaron confirmados por el extracto."))
+        resultado.append({"f": f.filename, "e": "OK" if movs else "Sin movimientos reconocidos", "l": len(movs), "n": nuevos, "notas": notas})
     c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('ultima_subida',?)", (avisos.ahora().isoformat(),))
     c.commit()
     users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall(); c.close()
@@ -681,3 +722,138 @@ def pk_borrar(request: Request, pid: int):
     u = user(request)
     c = db(); c.execute("DELETE FROM passkeys WHERE id=? AND user_id=?", (pid, u["id"])); c.commit(); c.close()
     return volver(request, "/cuenta", msg="Passkey eliminada")
+
+
+# ---------- Captura rápida ----------
+@app.get("/rapido")
+def rapido(request: Request, monto: str = "", desc: str = "", tipo: str = "gasto", medio: str = ""):
+    u = user(request)
+    return render(request, "rapido.html", u=u, pre={"monto": monto, "desc": desc, "tipo": tipo, "medio": medio}, abrir=True)
+
+
+@app.post("/movimientos/rapido")
+def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gasto"), monto: str = Form(...),
+                   descripcion: str = Form(""), categoria: str = Form("Auto"), medio: str = Form("Efectivo"),
+                   fecha: str = Form(""), persona: int = Form(0)):
+    u = user(request)
+    try:
+        valor = abs(captura.numero_es(monto))
+    except ValueError:
+        return volver(request, "/", err="Escribe el valor en números")
+    c = db()
+    reglas = [(r["kw"], r["categoria"]) for r in c.execute("SELECT kw,categoria FROM reglas")]
+    desc = descripcion.strip() or ("Ingreso" if tipo == "ingreso" else "Gasto")
+    cat = lector.categoria(desc, reglas) if categoria == "Auto" else categoria
+    efectivo = medio == "Efectivo"
+    h = hashlib.sha256(f"rapido{secrets.token_hex(8)}".encode()).hexdigest()
+    c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente)
+        VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], medio, fecha or date.today().isoformat(), desc[:200],
+                                         valor if tipo == "ingreso" else -valor, cat, "manual", h,
+                                         "confirmado" if efectivo else "provisional", "manual"))
+    c.commit(); c.close()
+    bg.add_task(avisos.revisar_presupuestos, db, PEM)
+    msg = "Guardado" + ("" if efectivo else ". Quedará confirmado cuando llegue el extracto")
+    from urllib.parse import urlparse
+    destino = urlparse(request.headers.get("referer", "")).path or "/"
+    return volver(request, "/" if destino in ("/rapido", "/login") else destino, msg=msg)
+
+
+# ---------- Captura automática ----------
+def usuario_por_token(token):
+    if not token:
+        return None
+    c = db(); u = c.execute("SELECT * FROM users WHERE token=?", (token,)).fetchone(); c.close()
+    return u
+
+
+@app.post("/api/captura")
+async def api_captura(request: Request):
+    """Recibe el texto de una notificación o correo. Autenticación: token personal (Authorization: Bearer ... o ?token=)."""
+    auth = request.headers.get("authorization", "")
+    token = auth[7:] if auth.lower().startswith("bearer ") else request.query_params.get("token", "")
+    datos = {}
+    try:
+        tipo = request.headers.get("content-type", "")
+        if "json" in tipo:
+            datos = await request.json()
+        elif "form" in tipo:
+            datos = dict(await request.form())
+        else:
+            datos = {"texto": (await request.body()).decode("utf-8", "replace")}
+    except Exception:
+        return JSONResponse({"ok": False, "error": "No se pudo leer el cuerpo"}, 400)
+    token = token or datos.get("token", "")
+    u = usuario_por_token(token)
+    if not u:
+        return JSONResponse({"ok": False, "error": "Token inválido"}, 401)
+    texto = str(datos.get("texto") or datos.get("text") or datos.get("body") or "")
+    titulo = str(datos.get("titulo") or datos.get("title") or "")
+    banco = str(datos.get("banco") or "")
+    app_ = str(datos.get("app") or "")
+    try:
+        fecha_cap = date.fromisoformat(str(datos.get("fecha"))[:10]) if datos.get("fecha") else None
+    except ValueError:
+        fecha_cap = None
+    if not banco and app_:
+        banco = captura.banco_de(app_) if captura.banco_de(app_) != "Otro" else ""
+    c = db()
+    r = captura.procesar(c, u["id"], texto, titulo, banco, "notificacion", fecha_defecto=fecha_cap)
+    c.close()
+    return {"ok": True, **{k: v for k, v in r.items() if k in ("estado", "tipo", "monto", "descripcion", "fecha", "banco")}}
+
+
+@app.get("/conectar")
+def conectar(request: Request):
+    u = user(request)
+    c = db()
+    d = dict(token=captura.token_de(c, u["id"]),
+             revisar=c.execute("SELECT * FROM capturas WHERE estado='por_revisar' ORDER BY id DESC LIMIT 20").fetchall(),
+             recientes_c=c.execute("""SELECT k.*, u.nombre FROM capturas k JOIN users u ON u.id=k.user_id
+                WHERE k.estado IN ('creado','por_revisar','ignorado') ORDER BY k.id DESC LIMIT 10""").fetchall(),
+             correo_estado=avisos.cfg(c, "correo_estado", ""), usuario=u["username"])
+    c.close()
+    base = f"{request.url.scheme}://{request.headers.get('host', '')}"
+    return render(request, "conectar.html", u=u, url=f"{base}/api/captura", buzon=os.environ.get("IMAP_USER", ""),
+                  imap=correo.configurado(), **d)
+
+
+@app.post("/conectar/probar")
+def probar_captura(request: Request, texto: str = Form(...), banco: str = Form("")):
+    u = user(request)
+    c = db()
+    r = captura.procesar(c, u["id"], texto, "", banco, "pegado")
+    c.close()
+    est = r.get("estado")
+    if est == "creado":
+        return volver(request, "/conectar", msg=f"Entendido: {r['tipo']} de {avisos.cop(r['monto'])} en {r['descripcion']}. Quedó como pendiente")
+    if est == "por_revisar":
+        return volver(request, "/conectar#revisar", msg="Vi un valor pero no supe si es gasto o ingreso. Dime cuál es abajo")
+    return volver(request, "/conectar", err="No encontré un valor ni un movimiento en ese texto")
+
+
+@app.post("/conectar/token")
+def nuevo_token(request: Request):
+    u = user(request)
+    c = db(); c.execute("UPDATE users SET token=? WHERE id=?", (secrets.token_urlsafe(24), u["id"])); c.commit(); c.close()
+    return volver(request, "/conectar", msg="Token nuevo creado. Actualiza tus atajos")
+
+
+@app.post("/capturas/{cid}/resolver")
+def resolver_captura(request: Request, cid: int, tipo: str = Form(...)):
+    user(request)
+    c = db()
+    k = c.execute("SELECT * FROM capturas WHERE id=? AND estado='por_revisar'", (cid,)).fetchone()
+    if k and tipo in ("gasto", "ingreso"):
+        reglas = [(r["kw"], r["categoria"]) for r in c.execute("SELECT kw,categoria FROM reglas")]
+        mid = captura.insertar(c, k["user_id"], tipo, k["monto"], k["descripcion"], k["fecha"], k["banco"], k["fuente"], reglas)
+        c.execute("UPDATE capturas SET estado='resuelto', mov_id=? WHERE id=?", (mid, cid))
+        c.commit()
+    c.close()
+    return RedirectResponse("/conectar#revisar", 303)
+
+
+@app.post("/capturas/{cid}/descartar")
+def descartar_captura(request: Request, cid: int):
+    user(request)
+    c = db(); c.execute("UPDATE capturas SET estado='descartado' WHERE id=?", (cid,)); c.commit(); c.close()
+    return RedirectResponse("/conectar#revisar", 303)

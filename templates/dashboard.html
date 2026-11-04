@@ -3,12 +3,13 @@
 <div class="seg"><a href="/?mes={{prev}}" title="Mes anterior">{{ico('chevl')}}</a><span>{{mes_txt}}</span><a href="/?mes={{next}}" title="Mes siguiente">{{ico('chevr')}}</a></div></div>
 <div class="stack">
 {% if sin_passkey %}<div class="card alert p"><div class="ic">{{ico('finger',22)}}</div><div class="t"><b>Entra más rápido</b><div class="sub">Crea una passkey y usa tu huella o Face ID en vez de la clave.</div></div><a class="btn soft" href="/cuenta">Crear passkey</a></div>{% endif %}
+{% if n_revisar %}<a class="card alert" href="/conectar#revisar" style="color:inherit"><div class="ic">{{ico('alert',22)}}</div><div class="t"><b>{{n_revisar}} captura(s) por revisar</b><div class="sub">Dime si fueron gasto o ingreso.</div></div>{{ico('chevr',20)}}</a>{% endif %}
 {% for p in pagos %}{% if p.dias <= 7 %}<div class="card alert {{'x' if p.dias<=1}}"><div class="ic">{{ico('card',22)}}</div>
 <div class="t"><b>Tarjeta {{p.banco}} {{'vence hoy' if p.dias==0 else 'venció hace %d día(s)'|format(-p.dias) if p.dias<0 else 'vence en %d día(s)'|format(p.dias)}}</b>
 <div class="sub">Pago mínimo {{p.pago_minimo|cop}}{% if p.a_pagar %} · sin intereses {{p.a_pagar|cop}}{% endif %} · límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}} · {{p.nombre}}</div></div>
 <form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="soft">Ya pagué</button></form></div>{% endif %}{% endfor %}
 <div class="g2 w"><div class="card hero"><div class="lbl">Balance de {{mes_txt|lower}}</div><div class="big">{{(tot.ing-tot.gas)|cop}}</div>
-<div class="two"><div><small>{{ico('down',15)}} Ingresos</small><b>{{tot.ing|cop}}</b></div><div><small>{{ico('up',15)}} Gastos</small><b>{{tot.gas|cop}}</b></div></div></div>
+<div class="two"><div><small>{{ico('down',15)}} Ingresos</small><b>{{tot.ing|cop}}</b></div><div><small>{{ico('up',15)}} Gastos</small><b>{{tot.gas|cop}}</b></div></div>{% if n_prov %}<div style="margin-top:14px;opacity:.85;font-size:13px;display:flex;gap:6px;align-items:center">{{ico('clock',15)}}Incluye {{n_prov}} movimiento(s) pendiente(s) de extracto</div>{% endif %}</div>
 <div class="card"><div class="hd"><h2>{{ico('users',19)}}Por persona</h2></div>
 {% for x in pers %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small class="ok">+{{x.ing|cop}}</small> <small class="bad">&nbsp;−{{x.gas|cop}}</small></div></div>
 {% else %}<div class="empty">{{ico('users',28)}}<div>Aún no hay movimientos este mes</div></div>{% endfor %}</div></div>

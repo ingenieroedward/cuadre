@@ -11,10 +11,12 @@
 <div style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><button class="btn lg">{{ico('upload',18)}}Subir y leer</button>
 <span class="sub" style="display:flex;gap:7px;align-items:center">{{ico('lock',16)}}La clave no se guarda. Tampoco el PDF, solo los movimientos.</span></div></form>
 {% if resultado %}<div class="card flush"><div class="hd" style="padding:18px 20px 0"><h2>{{ico('check',19)}}Resultado</h2></div>
-{% for f,e,l,n,a in resultado %}<div class="li"><span class="chip s" style="--c:{{'#0d9b6a' if e=='OK' else '#dc3a52'}}">{{ico('file' if e=='OK' else 'alert',17)}}</span>
-<div class="t"><b>{{f}}</b><small>{{e}}{% if a %}<br><span class="warn">{{a}}</span>{% endif %}</small></div>
-<div class="n"><span class="pill">{{l}} leídos</span> <span class="pill ok">{{n}} nuevos</span></div></div>{% endfor %}
+{% for r in resultado %}<div class="li"><span class="chip s" style="--c:{{'#0d9b6a' if r.e=='OK' else '#dc3a52'}}">{{ico('file' if r.e=='OK' else 'alert',17)}}</span>
+<div class="t"><b>{{r.f}}</b><small style="white-space:normal">{{r.e}}</small>
+{% for tipo,txt in r.notas %}<div class="sub {{tipo}}" style="display:flex;gap:7px;margin-top:4px;align-items:flex-start">{{ico('check' if tipo=='ok' else 'alert',16)}}<span>{{txt}}</span></div>{% endfor %}</div>
+<div class="n"><span class="pill">{{r.l}} leídos</span> <span class="pill ok">{{r.n}} nuevos</span></div></div>{% endfor %}
 <div style="padding:14px 20px"><a class="btn" href="/movimientos">Revisar movimientos</a></div></div>{% endif %}
+<a class="card alert p" href="/conectar" style="color:inherit"><div class="ic">{{ico('zap',22)}}</div><div class="t"><b>¿No quieres esperar al extracto?</b><div class="sub">Captura los movimientos al momento desde el celular o los correos de alerta.</div></div>{{ico('chevr',20)}}</a>
 <div class="card"><div class="hd"><h2>{{ico('info',19)}}Cómo hacerlo</h2></div><div class="steps">
 <div class="step"><b class="k">1</b><div><b>Descarga el PDF</b><div class="sub">Desde el correo de tu banco. Los de Nu llegan los primeros días del mes.</div></div></div>
 <div class="step"><b class="k">2</b><div><b>Súbelo aquí</b><div class="sub">Con tu cédula como clave si el PDF la pide. Puedes subir varios.</div></div></div>

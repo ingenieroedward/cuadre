@@ -10,6 +10,16 @@ mes/persona/categoría, ingresos y gastos manuales, presupuestos, recordatorios 
 4. Abre el sitio: la primera vez pide **crear el administrador** (usuario y clave). Nada de usuarios en variables de entorno.
 5. Los datos (base de datos, llave de sesión y llaves de avisos) viven en el volumen `cuadre_data`. Respáldalo.
 
+## Captura en el momento (sin esperar el extracto)
+- **Botón +** en cualquier pantalla (y `/rapido?monto=12000&desc=Taxi`, útil para atajos de iPhone): anota un gasto o ingreso.
+  Si eliges un banco queda *Pendiente* y el extracto lo confirma solo; si eliges Efectivo queda confirmado.
+- **Notificaciones del celular (Android):** una app como MacroDroid envía el texto de la notificación a `POST /api/captura`
+  con tu token personal (ver **Captura automática** dentro de la app). En iPhone no es posible leer notificaciones de otras apps.
+- **Correos de alerta:** define `IMAP_HOST`, `IMAP_USER` y `IMAP_PASSWORD` (buzón dedicado, contraseña de aplicación) y reenvía allí las
+  alertas de tus bancos a `buzon+tuusuario@...`. Nequi manda un correo por cada movimiento.
+- **Conciliación:** al subir el extracto, lo capturado se empareja por banco, valor y fecha (±5 días) y no se duplica.
+  Con Nu además se comprueba que lo leído cuadre con "Lo que entró / Lo que salió" del resumen.
+
 ## Claves
 Cada persona cambia su clave en **Yo → Mi cuenta**. El administrador restablece las de otros en **Familia**.
 

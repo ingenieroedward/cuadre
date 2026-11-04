@@ -9,7 +9,7 @@
 <input class="grow" name="q" value="{{f.q}}" placeholder="Buscar…" type="search"><button class="soft">{{ico('search',17)}}</button></form>
 <div class="card flush">
 {% for g in grupos %}<div class="dayh"><span>{{g.txt}}</span><span class="n {{'ok' if g.total>0 else 'bad' if g.total<0}}">{{g.total|cop}}</span></div>
-{% for r in g.rows %}<div class="li">{{r.categoria|ico}}<div class="t"><b title="{{r.descripcion}}">{{r.descripcion}}</b>
+{% for r in g.rows %}<div class="li">{{r.categoria|ico}}<div class="t"><b title="{{r.descripcion}}">{{r.descripcion}}{% if r.estado=='provisional' %} <span class="pill warn" title="Se confirmará cuando llegue el extracto" style="vertical-align:1px">Pendiente</span>{% endif %}</b>
 <form method="post" action="/movimientos/{{r.id}}/categoria" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
 <input type="hidden" name="aplicar_similares" value=""><select class="catsel" name="categoria" onchange="this.form.aplicar_similares.value=confirm('¿Aplicar esta categoría a todos los movimientos parecidos?')?'1':'';this.form.submit()">{% for c in cats %}<option {{'selected' if c==r.categoria}}>{{c}}</option>{% endfor %}</select>
 <small>· {{r.nombre}} · {{r.banco}}</small></form></div>
