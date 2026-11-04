@@ -24,7 +24,11 @@ def ahora():
 
 
 def cop(v):
-    return ("-" if v < 0 else "") + "$" + f"{abs(v):,.0f}".replace(",", ".")
+    """Pesos con dos decimales, como en Nu: $63.634,80 · $12.000,00 · -$1.500,00"""
+    v = v or 0
+    centavos = round(abs(v) * 100)
+    ent, cen = divmod(centavos, 100)
+    return ("-" if v < 0 and centavos else "") + "$" + f"{ent:,}".replace(",", ".") + f",{cen:02d}"
 
 
 def claves(data_dir):
