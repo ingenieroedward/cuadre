@@ -7,6 +7,12 @@ services:
       TZ: America/Bogota
       OWN_NAMES: ${OWN_NAMES:-}
       VAPID_CONTACT: ${VAPID_CONTACT:-mailto:admin@example.com}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
+      IMAP_MAX_DIAS: ${IMAP_MAX_DIAS:-10}
     volumes:
       - cuadre_data:/data
     expose:
