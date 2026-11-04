@@ -4,6 +4,7 @@ import html
 import imaplib
 import os
 import re
+from datetime import timedelta
 from email.header import decode_header, make_header
 from email.utils import getaddresses, parsedate_to_datetime
 
@@ -71,29 +72,48 @@ def procesar_mensaje(c, raw: bytes):
     return captura.procesar(c, usuario["id"], cuerpo[:1800], asunto, banco, "correo", fecha_defecto=fecha)
 
 
+def _ids_a_revisar(imap, carpeta):
+    """En una etiqueta propia (p. ej. 'Cuadre') se leen todos los sin leer. En la bandeja de entrada solo los que
+    vienen de bancos conocidos y de los últimos días, para no tocar el resto del correo."""
+    if carpeta.upper() != "INBOX":
+        _, ids = imap.search(None, "UNSEEN")
+        return ids[0].split()
+    desde = (avisos.ahora() - timedelta(days=int(os.environ.get("IMAP_MAX_DIAS", 10)))).strftime("%d-%b-%Y")
+    ids = set()
+    for dom in DOMINIOS:
+        _, r = imap.search(None, "UNSEEN", "SINCE", desde, "FROM", f'"{dom}"')
+        ids.update(r[0].split())
+    return sorted(ids, key=int)
+
+
 def revisar_buzon(db):
-    """Una pasada: lee los correos sin leer, crea los movimientos y los marca como leídos."""
+    """Una pasada: crea los movimientos de las alertas. No marca como leído nada que no sea una alerta reconocida."""
     if not configurado():
         return
     c = db()
     nuevos = 0
+    carpeta = os.environ.get("IMAP_FOLDER", "INBOX")
     try:
         imap = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ.get("IMAP_PORT", 993)), timeout=30)
         imap.login(os.environ["IMAP_USER"], os.environ["IMAP_PASSWORD"])
-        imap.select(os.environ.get("IMAP_FOLDER", "INBOX"))
-        _, ids = imap.search(None, "UNSEEN")
-        for i in ids[0].split()[:50]:
-            _, datos = imap.fetch(i, "(RFC822)")
+        estado_sel, _ = imap.select(f'"{carpeta}"')
+        if estado_sel != "OK":
+            raise LookupError(f"No existe la carpeta o etiqueta '{carpeta}'")
+        for i in _ids_a_revisar(imap, carpeta)[:50]:
+            _, datos = imap.fetch(i, "(BODY.PEEK[])")        # PEEK: leer sin marcar como leído
             try:
                 r = procesar_mensaje(c, datos[0][1])
                 nuevos += 1 if r and r.get("estado") in ("creado", "por_revisar") else 0
+                reconocido = r is not None
             except Exception as e:
                 print("correo:", type(e).__name__, e, flush=True)
-            imap.store(i, "+FLAGS", "\\Seen")
+                reconocido = False
+            if reconocido or carpeta.upper() != "INBOX":
+                imap.store(i, "+FLAGS", "\\Seen")
         imap.logout()
         estado = f"OK · {avisos.ahora():%d/%m %H:%M} · {nuevos} nuevos"
     except Exception as e:
-        estado = f"Error · {avisos.ahora():%d/%m %H:%M} · {type(e).__name__}"
+        estado = f"Error · {avisos.ahora():%d/%m %H:%M} · {type(e).__name__}: {str(e)[:80]}"
     c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('correo_estado',?)", (estado,))
     c.commit()
     c.close()
