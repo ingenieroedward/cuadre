@@ -12,9 +12,9 @@
 <div class="hd" style="margin-bottom:6px"><h2>{{ico('wallet',19)}}¿Cuánto puedo gastar?</h2></div>
 {% if libre.minimo is not none and libre.minimo < 0 %}<div class="alerta-box" style="margin:0 0 10px">{{ico('alert',17)}}<div><b>Ojo con el {{libre.fecha_min.strftime('%d/%m')}}:</b> tu saldo bajaría a <b>{{libre.minimo|cop}}</b> porque un pago vence antes de que llegue tu próximo ingreso.</div></div>{% endif %}
 {% if libre.libre < 0 %}<div class="b bad" style="font-size:24px;letter-spacing:-.5px">Te faltan {{(-libre.libre)|cop}}</div><div class="sub">Aun con los ingresos que esperas, lo comprometido hasta el {{libre.fin.strftime('%d/%m')}} supera lo que tendrás.</div>
-{% else %}<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="b" style="font-size:30px;letter-spacing:-1px">{{libre.por_dia|cop}}</span><span class="sub">por día · {{libre.dias}} día{{'s' if libre.dias!=1}} hasta el {{libre.fin.strftime('%d/%m')}}</span></div>
+{% else %}<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="b cnt" style="font-size:30px;letter-spacing:-1px">{{libre.por_dia|cop}}</span><span class="sub">por día · {{libre.dias}} día{{'s' if libre.dias!=1}} hasta el {{libre.fin.strftime('%d/%m')}}</span></div>
 <div class="sub" style="margin-top:4px">Hoy llevas gastado <b style="color:var(--tx)">{{libre.gastado_hoy|cop}}</b>{% if libre.restante_hoy>=0 %} · te quedan <b style="color:var(--tx)">{{libre.restante_hoy|cop}}</b> de hoy{% else %} · te pasaste <b class="bad">{{(-libre.restante_hoy)|cop}}</b>{% endif %}</div>
-{% if libre.lim_fecha %}<div class="sub" style="margin-top:4px">Lo limita {{libre.lim_que|lower}} del {{libre.lim_fecha.strftime('%d/%m')}}: hasta entonces solo cuentas con lo que ya tienes y lo que llegue antes.</div>{% endif %}{% endif %}
+{% if libre.lim_fecha %}<div class="sub" style="margin-top:4px">Lo limita: {{libre.lim_que}} ({{libre.lim_fecha.strftime('%d/%m')}}). Hasta entonces solo cuentas con lo que ya tienes y lo que llegue antes.</div>{% endif %}{% endif %}
 {% if not libre.hay_ingresos %}<a class="pill warn" href="/ingresos" style="margin-top:10px;display:inline-flex">{{ico('up',13)}}Agrega tu sueldo para un cálculo real</a>{% endif %}
 <details class="how" style="margin-top:8px;border-top:1px solid var(--ln)"><summary style="font-size:13px;font-weight:600">{{ico('info',15)}}Cómo se calcula</summary>
 <div class="li" style="padding:6px 0"><div class="t">Lo que tienes hoy</div><div class="n b">{{libre.saldo|cop}}</div></div>
@@ -32,7 +32,7 @@
 {% for x in pers %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small class="ok">+{{x.ing|cop}}</small> <small class="bad">&nbsp;−{{x.gas|cop}}</small></div></div>
 {% else %}<div class="empty">{{ico('users',28)}}<div>Aún no hay movimientos este mes</div></div>{% endfor %}</div></div>
 {% if saldos %}<div class="card"><div class="hd"><h2>{{ico('wallet',19)}}Saldo de tus cuentas</h2><button class="soft" type="button" onclick="dsaldo.showModal()">Ajustar</button></div>
-<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span class="b" style="font-size:28px;letter-spacing:-1px">{{saldo_total|cop}}</span><span class="sub">estimado hoy</span></div>
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span class="b cnt" style="font-size:28px;letter-spacing:-1px">{{saldo_total|cop}}</span><span class="sub">estimado hoy</span></div>
 {% for s in saldos %}<div class="li"><span class="av">{{s.nombre|inicial}}</span><div class="t"><b>{{s.banco}}{% if s.banco!='Efectivo' %} · {{s.nombre}}{% else %} · {{s.nombre}}{% endif %}</b>
 <small>{{'Extracto' if s.fuente=='extracto' else 'Ajuste manual'}} del {{s.fecha[8:]}}/{{s.fecha[5:7]}}{% if s.n %}: {{s.base|cop}} · {{'+' if s.delta>=0}}{{s.delta|cop}} en {{s.n}} movimiento(s){% if s.pend %} ({{s.pend}} pendiente(s)){% endif %}{% endif %}</small></div>
 <div class="n b">{{s.estimado|cop}}</div></div>
