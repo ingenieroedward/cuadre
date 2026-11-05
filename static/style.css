@@ -11,8 +11,8 @@ a{color:var(--ac);text-decoration:none}h1,h2,h3,p{margin:0}
 .mtop .sp{flex:1}
 .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.4px;color:var(--tx)}
 .logo i{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#7a1fd6,#b25cff);display:grid;place-items:center;color:#fff;font-style:normal;font-size:17px;font-weight:800}
-.tabs{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:30;display:flex;gap:2px;background:color-mix(in srgb,var(--sf) 82%,transparent);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border:1px solid color-mix(in srgb,var(--ln) 80%,transparent);border-radius:28px;padding:6px;box-shadow:0 8px 30px rgba(30,10,60,.16),0 1px 3px rgba(30,10,60,.08)}
-.tabs a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--mu);padding:6px 0;border-radius:12px}.tabs a.on{color:var(--ac);background:var(--soft)}
+.tabs{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:30;display:flex;gap:2px;background:color-mix(in srgb,var(--sf) 82%,transparent);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border:1px solid color-mix(in srgb,var(--ln) 80%,transparent);border-radius:30px;padding:5px;box-shadow:0 8px 30px rgba(30,10,60,.16),0 1px 3px rgba(30,10,60,.08)}
+.tabs a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--mu);padding:8px 0 6px;border-radius:24px}.tabs a{flex:1 1 0;min-width:0;transition:background .2s,color .2s}.tabs a{position:relative}.tabs a .i,.tabs a svg{position:relative;z-index:1}.tabs a::before{content:"";position:absolute;top:3px;left:50%;width:54px;height:32px;margin-left:-27px;border-radius:16px;background:color-mix(in srgb,var(--ac) 16%,transparent);opacity:0;transform:scale(.6);transition:opacity .2s,transform .2s}.tabs a.on{color:var(--ac);font-weight:700}.tabs a.on::before{opacity:1;transform:none}
 .main{padding:18px 16px calc(104px + env(safe-area-inset-bottom));max-width:1120px;margin:0 auto}
 @media(min-width:900px){
  body.app{display:grid;grid-template-columns:248px 1fr}
@@ -136,7 +136,7 @@ details.how ol{margin:6px 0 0 18px;padding:0;color:var(--mu)}details.how li{marg
  .drop{padding:20px 12px}.drop b{font-size:15px}.steps{gap:10px;margin-top:12px}
  .empty{padding:20px 10px}
  .fab{width:50px;height:50px;right:14px;bottom:calc(86px + env(safe-area-inset-bottom))}
- .tabs{left:10px;right:10px;padding:4px}.tabs a{font-size:10.5px;gap:1px;padding:6px 0}.tabs a .i{width:21px;height:21px}
+ .tabs{left:10px;right:10px;padding:4px}.tabs a{font-size:10.5px;gap:1px;padding:6px 0 5px;border-radius:22px}.tabs a .i{width:21px;height:21px}
  dialog{padding:16px;border-radius:16px;width:94vw}.monto{font-size:28px;padding:10px}
  .filters{gap:8px;margin-bottom:12px}.filters input,.filters select{padding:7px 10px}
  .copy code{font-size:12px;padding:8px 10px}
