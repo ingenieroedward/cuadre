@@ -5,6 +5,10 @@
 <div class="t"><b>{{x.nombre}}</b><small>@{{x.username}}</small></div>
 <span class="pill {{'' if x.admin else 'warn'}}">{{'Admin' if x.admin else 'Miembro'}}</span>
 {% if u.admin %}<button class="ghost" type="button" title="Restablecer clave" aria-label="Restablecer clave de {{x.nombre}}" onclick="clave({{x.id}},{{x.nombre|tojson|forceescape}})">{{ico('lock',18)}}</button>{% endif %}</div>{% endfor %}</div>
+<div class="card"><div class="hd"><h2>{{ico('users',19)}}Transferencias entre ustedes</h2></div>
+<p class="sub">Escribe los nombres como salen en los bancos, uno por línea (por ejemplo «Edward David Diaz Padilla» y «Vanesa Alexandra Correa Avila»). Lo que se envíen entre ustedes no cuenta como ingreso ni gasto: el sueldo se cuenta una sola vez, donde llega. Sirven los nombres recortados («Vanesa Alexandra», «Edward»).</p>
+<form class="frm" method="post" action="/miembros/nombres"><label class="f">Nombres de la familia<textarea name="nombres" rows="3" placeholder="Edward David Diaz Padilla&#10;Vanesa Alexandra Correa Avila" style="font:inherit;padding:12px 14px;border-radius:12px;border:1px solid var(--ln);background:var(--sf2);color:var(--tx)">{{nombres}}</textarea></label>
+<button style="justify-content:center">Guardar y aplicar a lo cargado</button></form></div>
 {% if u.admin %}<div class="card"><div class="hd"><h2>{{ico('plus',19)}}Agregar a la familia</h2></div><form class="frm" method="post">
 <div class="frm row2"><label class="f">Nombre<input name="nombre" required autocomplete="off"></label><label class="f">Usuario<input name="username" autocapitalize="none" autocomplete="off" required></label></div>
 <label class="f">Clave (mínimo 8)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>

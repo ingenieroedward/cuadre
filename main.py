@@ -3,6 +3,7 @@ import calendar
 import csv
 import hashlib
 import io
+import re
 import os
 import secrets
 import sqlite3
@@ -216,6 +217,8 @@ def init():
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
+    _n = c.execute("SELECT valor FROM config WHERE clave='nombres_familia'").fetchone()
+    lector.set_nombres(_n["valor"] if _n else "")
     # El plan de acción se llena al guardar un consejo; los consejos anteriores a esa función se importan una sola vez.
     if not c.execute("SELECT 1 FROM config WHERE clave='mig_plan_ia'").fetchone():
         if not c.execute("SELECT 1 FROM asesor_acciones").fetchone():
@@ -760,8 +763,26 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
 @app.get("/miembros")
 def miembros(request: Request):
     u = user(request)
-    c = db(); users = c.execute("SELECT id,username,nombre,admin FROM users ORDER BY nombre").fetchall(); c.close()
-    return render(request, "miembros.html", u=u, users=users)
+    c = db(); users = c.execute("SELECT id,username,nombre,admin FROM users ORDER BY nombre").fetchall()
+    r = c.execute("SELECT valor FROM config WHERE clave='nombres_familia'").fetchone(); c.close()
+    return render(request, "miembros.html", u=u, users=users, nombres=(r["valor"] if r else ""))
+
+
+@app.post("/miembros/nombres")
+def guardar_nombres(request: Request, nombres: str = Form("")):
+    """Nombres con los que aparecen en los bancos. Las transferencias entre ustedes no cuentan como ingreso ni gasto."""
+    user(request)
+    nombres = "\n".join(n.strip() for n in re.split(r"[,\n]", nombres) if n.strip())[:600]
+    c = db()
+    c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('nombres_familia',?)", (nombres,))
+    lector.set_nombres(nombres)
+    n = 0
+    for r in c.execute("""SELECT id,descripcion FROM movs WHERE fuente='extracto' AND
+            categoria IN ('Transferencias recibidas','Transferencias enviadas','Otros','Ingresos')""").fetchall():
+        if lector.es_propio(r["descripcion"]):
+            c.execute("UPDATE movs SET categoria='Traslado propio' WHERE id=?", (r["id"],)); n += 1
+    c.commit(); c.close()
+    return volver(request, "/miembros", msg=f"Guardado. {n} movimientos pasaron a «Traslado propio»")
 
 
 @app.post("/miembros")

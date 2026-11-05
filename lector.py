@@ -35,7 +35,28 @@ CATEGORIAS_BASE = {
 # Estas categorías no cuentan como ingreso/gasto en el resumen (mueven plata propia)
 EXCLUIDAS = ("Traslado propio", "Pago de tarjeta", "Reversado")
 import os
-NOMBRES_PROPIOS = [n.strip().lower() for n in os.environ.get("OWN_NAMES", "").split(",") if n.strip()]
+NOMBRES_ENV = [n.strip().lower() for n in os.environ.get("OWN_NAMES", "").split(",") if n.strip()]
+NOMBRES_PROPIOS = list(NOMBRES_ENV)      # env + los que se escriben en Familia → «Transferencias entre ustedes»
+
+
+def set_nombres(texto):
+    """Nombres de la familia escritos en la app (uno por línea o separados por coma)."""
+    extra = [sin_tildes(n.strip().lower()) for n in re.split(r"[,\n]", texto or "") if n.strip()]
+    NOMBRES_PROPIOS[:] = list(dict.fromkeys([sin_tildes(n) for n in NOMBRES_ENV] + extra))
+
+
+def es_propio(desc):
+    """True si la transferencia es con alguien de la familia: el nombre completo, o el recortado que imprime el banco
+    («Vanesa Alexandra», «Edward») que es el comienzo de un nombre configurado."""
+    d = sin_tildes(desc.lower())
+    if any(n in d for n in NOMBRES_PROPIOS):
+        return True
+    m = re.search(r"(?:\ba|\bde|\bpara):\s*(.+)$", d) or re.match(r"^(?:recibiste de|enviaste a|de|para)\s+(.+)$", d)
+    if not m:
+        return False
+    cp = re.sub(r"[^a-z ]", " ", m[1])
+    cp = " ".join(cp.split())
+    return len(cp) >= 5 and any(n.startswith(cp) for n in NOMBRES_PROPIOS)
 PREFIJOS = ("recibiste de ", "enviaste a ", "compra en ", "pago a ", "pagaste ")
 
 
@@ -81,7 +102,7 @@ def categoria(desc, reglas):
     d = " " + desc.lower() + " "
     if d.strip().startswith("pagaste tu tarjeta"):
         return "Pago de tarjeta"
-    if any(sin_tildes(n) in sin_tildes(d) for n in NOMBRES_PROPIOS):
+    if es_propio(desc):
         return "Traslado propio"
     if re.search(r"\bretiro\b|retiraste|\bcajero\b", d):
         return "Traslado propio"       # sacar efectivo no es gastar: el gasto se anota cuando se paga con ese efectivo
