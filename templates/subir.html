@@ -19,11 +19,15 @@
 {% for tipo,txt in r.notas %}<div class="sub {{tipo}}" style="display:flex;gap:7px;margin-top:4px;align-items:flex-start">{{ico('check' if tipo=='ok' else 'alert',16)}}<span>{{txt}}</span></div>{% endfor %}</div>
 <div class="n"><span class="pill">{{r.l}} leídos</span> <span class="pill ok">{{r.n}} nuevos</span></div></div>
 {% if r.diag %}<details class="how" style="padding:0 20px 14px"><summary>{{ico('search',17)}}Ver cómo leí este PDF</summary>
-<p class="sub">Si el formato es nuevo, copia este texto y mándaselo a quien te ayuda a configurar Cuadre para que lo ajuste. Puedes borrar tu nombre, dirección y números antes de compartirlo.</p>
+<p class="sub">Si los valores o los signos salieron raros, copia este texto y pásamelo para ajustar la lectura de ese banco. Puedes borrar tu nombre, dirección y números antes de compartirlo.</p>
 <pre class="code" id="diag{{loop.index}}" style="max-height:260px;overflow:auto">{{r.diag}}</pre>
 <button class="soft" type="button" onclick="navigator.clipboard.writeText(document.getElementById('diag{{loop.index}}').textContent)">Copiar texto</button></details>{% endif %}
 {% endfor %}
 <div style="padding:14px 20px"><a class="btn" href="/movimientos">Revisar movimientos</a></div></div>{% endif %}
+{% if archivos %}<div class="card"><div class="hd"><h2>{{ico('file',19)}}Extractos cargados</h2></div>
+<p class="sub">Si un extracto se leyó mal (valores o signos raros), quítalo aquí y vuelve a subirlo cuando esté corregido.</p>
+{% for a in archivos %}<div class="li"><span class="chip s">{{ico('file',17)}}</span><div class="t"><b title="{{a.archivo}}">{{a.archivo}}</b><small>{{a.banco}} · {{a.nombre}} · {{a.n}} movimientos · {{a.d}} a {{a.h}}</small></div>
+<form method="post" action="/subir/quitar" onsubmit="return confirm('¿Quitar los {{a.n}} movimientos de este archivo?')"><input type="hidden" name="archivo" value="{{a.archivo}}"><input type="hidden" name="banco" value="{{a.banco}}"><input type="hidden" name="persona" value="{{a.user_id}}"><button class="ghost del" title="Quitar este extracto">{{ico('trash',17)}}</button></form></div>{% endfor %}</div>{% endif %}
 <a class="card alert p" href="/conectar" style="color:inherit"><div class="ic">{{ico('zap',22)}}</div><div class="t"><b>¿No quieres esperar al extracto?</b><div class="sub">Captura los movimientos al momento desde el celular o los correos de alerta.</div></div>{{ico('chevr',20)}}</a>
 <div class="card"><div class="hd"><h2>{{ico('info',19)}}Cómo hacerlo</h2></div><div class="steps">
 <div class="step"><b class="k">1</b><div><b>Descarga el PDF</b><div class="sub">Desde el correo de tu banco. Los de Nu llegan los primeros días del mes.</div></div></div>

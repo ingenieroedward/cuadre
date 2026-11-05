@@ -614,7 +614,25 @@ def subir_form(request: Request):
     lista_c = cuentas.nombres(c, BANCOS)
     pares = [(r["user_id"], r["nombre"]) for r in c.execute("SELECT user_id,nombre FROM cuentas WHERE activa=1 ORDER BY nombre")]
     c.close()
-    return render(request, "subir.html", u=u, users=users, bancos=lista_c, pares=pares, resultado=None)
+    return render(request, "subir.html", u=u, users=users, bancos=lista_c, pares=pares, resultado=None, archivos=archivos_cargados(db()))
+
+
+def archivos_cargados(c):
+    rows = c.execute("""SELECT m.archivo, m.banco, m.user_id, u.nombre, COUNT(*) n, MIN(m.fecha) d, MAX(m.fecha) h FROM movs m
+        JOIN users u ON u.id=m.user_id WHERE m.archivo IS NOT NULL AND m.archivo!='' AND m.fuente='extracto'
+        GROUP BY m.archivo, m.banco, m.user_id ORDER BY MAX(m.id) DESC LIMIT 12""").fetchall()
+    c.close()
+    return rows
+
+
+@app.post("/subir/quitar")
+def quitar_archivo(request: Request, archivo: str = Form(...), banco: str = Form(...), persona: int = Form(...)):
+    """Deshace una subida: borra lo que ese archivo cargó en esa cuenta (para volver a subirlo bien)."""
+    user(request)
+    c = db()
+    n = c.execute("DELETE FROM movs WHERE archivo=? AND banco=? AND user_id=? AND fuente='extracto'", (archivo, banco, persona)).rowcount
+    c.commit(); c.close()
+    return volver(request, "/subir", msg=f"Quité {n} movimientos de {archivo}")
 
 
 @app.post("/subir")
@@ -721,7 +739,7 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
         diag = ""
         if m_tipo_tarjeta(movs, info, tipo) and not (info and "fecha_limite" in info):
             notas.append(("bad", "No pude leer el resumen de la tarjeta (fecha límite, pago mínimo, deuda total). Abre «Ver cómo leí este PDF» y pásame el texto."))
-        if not movs or (m_tipo_tarjeta(movs, info, tipo) and not (info and "fecha_limite" in info)):
+        if not movs or banco.lower() != "nu" or (m_tipo_tarjeta(movs, info, tipo) and not (info and "fecha_limite" in info)):
             try:
                 diag = lector.texto_pdf(datos, clave)[:7000]
             except Exception:
@@ -735,7 +753,7 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
     pares = [(r["user_id"], r["nombre"]) for r in c.execute("SELECT user_id,nombre FROM cuentas WHERE activa=1 ORDER BY nombre")]
     c.close()
     bg.add_task(avisos.revisar_presupuestos, db, PEM)
-    return render(request, "subir.html", u=u, users=users, bancos=lista_c, pares=pares, resultado=resultado)
+    return render(request, "subir.html", u=u, users=users, bancos=lista_c, pares=pares, resultado=resultado, archivos=archivos_cargados(db()))
 
 
 # ---------- Miembros ----------
