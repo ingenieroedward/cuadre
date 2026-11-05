@@ -27,8 +27,10 @@ import captura
 import correo
 import cuentas
 import deudas
+import agenda
 import icons
 import lector
+import metas
 import saldos
 
 BASE = Path(__file__).parent
@@ -85,6 +87,7 @@ tpl.env.filters["ico"] = icons.cat
 tpl.env.filters["color"] = icons.color
 tpl.env.filters["en_meses"] = lambda n: f"{MES_ES[deudas.add_months(date.today(), int(n)).month - 1][:3]} {deudas.add_months(date.today(), int(n)).year}"
 tpl.env.filters["todate"] = lambda s: date.fromisoformat(s)
+tpl.env.filters["dia_es"] = lambda d: f"{DIA_ES[d.weekday()][:3]} {d.day} {MES_ES[d.month - 1][:3]}"
 tpl.env.filters["inicial"] = lambda t: (t or "?").strip()[:1].upper()
 MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 DIA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -154,6 +157,9 @@ def init():
     CREATE TABLE IF NOT EXISTS cajitas(id INTEGER PRIMARY KEY, user_id INTEGER, banco TEXT, fecha TEXT, saldo_cajitas REAL, ea_cajitas REAL,
         rend_cajitas REAL, saldo_cuenta REAL, ea_cuenta REAL, rend_cuenta REAL, UNIQUE(user_id,banco,fecha));
     CREATE TABLE IF NOT EXISTS rend_cfg(user_id INTEGER, banco TEXT, ea_actual REAL, PRIMARY KEY(user_id,banco));
+    CREATE TABLE IF NOT EXISTS metas(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, objetivo REAL, periodo TEXT DEFAULT 'total',
+        fecha_limite TEXT, bono_ea REAL DEFAULT 0, banco TEXT, avisar INTEGER DEFAULT 1, activa INTEGER DEFAULT 1);
+    CREATE TABLE IF NOT EXISTS meta_aportes(id INTEGER PRIMARY KEY, meta_id INTEGER, fecha TEXT, monto REAL, nota TEXT);
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -374,12 +380,14 @@ def dashboard(request: Request, mes: str = ""):
         WHERE p.pagado=0 ORDER BY p.fecha_limite LIMIT 3""").fetchall()
     lista_saldos = saldos.actuales(c)
     resumen_d = resumen_deudas(c)
+    libre = metas.disponible(c)
+    prox7 = agenda.eventos(c, date.today(), 8)[:4]
     n_prov = c.execute("SELECT COUNT(*) n FROM movs WHERE estado='provisional' AND substr(fecha,1,7)=?", (mes,)).fetchone()["n"]
     n_pk = c.execute("SELECT COUNT(*) n FROM passkeys WHERE user_id=?", (u["id"],)).fetchone()["n"]
     c.close()
     pagos = [dict(p, dias=(date.fromisoformat(p["fecha_limite"]) - date.today()).days) for p in pagos]
     return render(request, "dashboard.html", u=u, mes=mes, tot=tot, cats=[dict(x) for x in cats],
-                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov, saldos=lista_saldos, res_deudas=resumen_d, saldo_total=sum(x['estimado'] for x in lista_saldos),
+                  pers=[dict(x) for x in pers], hist=[dict(x) for x in reversed(hist)], pres=pres, pagos=pagos, sin_passkey=(n_pk == 0), n_prov=n_prov, saldos=lista_saldos, res_deudas=resumen_d, libre=libre, prox7=prox7, saldo_total=sum(x['estimado'] for x in lista_saldos),
                   mes_txt=mes_txt(mes), prev=mover_mes(mes, -1), next=mover_mes(mes, 1), mes_txt_f=mes_txt)
 
 
@@ -1230,3 +1238,96 @@ def borrar_cuenta(request: Request, cid: int):
         c.commit()
     c.close()
     return volver(request, "/cuentas", msg="Cuenta quitada")
+
+
+# ---------- Metas ----------
+def cargar_metas(c):
+    out = []
+    for m in c.execute("""SELECT m.*, u.nombre AS responsable FROM metas m JOIN users u ON u.id=m.user_id
+                          WHERE m.activa=1 ORDER BY m.periodo, m.id""").fetchall():
+        aps = c.execute("SELECT * FROM meta_aportes WHERE meta_id=? ORDER BY fecha DESC, id DESC", (m["id"],)).fetchall()
+        out.append({"m": m, "e": metas.estado_meta(m, aps), "aportes": aps})
+    return out
+
+
+@app.get("/metas")
+def pagina_metas(request: Request):
+    u = user(request)
+    c = db()
+    lista = cargar_metas(c)
+    users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+    c.close()
+    return render(request, "metas.html", u=u, lista=lista, usuarios_m=users, hoy=date.today().isoformat())
+
+
+@app.post("/metas")
+def crear_meta(request: Request, nombre: str = Form(...), objetivo: str = Form(...), periodo: str = Form("total"),
+               fecha_limite: str = Form(""), bono_ea: str = Form(""), banco: str = Form(""), persona: int = Form(0)):
+    u = user(request)
+    try:
+        obj = abs(captura.numero_es(objetivo))
+        bono = abs(captura.numero_es(bono_ea.replace("%", ""))) if bono_ea.strip() else 0.0
+    except ValueError:
+        return volver(request, "/metas", err="Revisa los números de la meta")
+    if obj <= 0:
+        return volver(request, "/metas", err="La meta debe ser mayor que cero")
+    c = db()
+    c.execute("""INSERT INTO metas(user_id,nombre,objetivo,periodo,fecha_limite,bono_ea,banco) VALUES(?,?,?,?,?,?,?)""",
+              (persona or u["id"], nombre.strip()[:80], obj, "mensual" if periodo == "mensual" else "total",
+               fecha_limite or None, bono, banco.strip()[:40]))
+    c.commit(); c.close()
+    return volver(request, "/metas", msg="Meta creada")
+
+
+@app.post("/metas/{mid}/aporte")
+def aportar_meta(request: Request, mid: int, monto: str = Form(...), fecha: str = Form("")):
+    user(request)
+    try:
+        v = captura.numero_es(monto)
+    except ValueError:
+        return volver(request, "/metas", err="Escribe el valor en números")
+    c = db()
+    c.execute("INSERT INTO meta_aportes(meta_id,fecha,monto,nota) VALUES(?,?,?,?)",
+              (mid, fecha or date.today().isoformat(), v, "Aporte" if v >= 0 else "Retiro"))
+    c.commit(); c.close()
+    return volver(request, "/metas", msg="Aporte registrado")
+
+
+@app.post("/metas/{mid}/aporte/{aid}/borrar")
+def borrar_aporte(request: Request, mid: int, aid: int):
+    user(request)
+    c = db(); c.execute("DELETE FROM meta_aportes WHERE id=? AND meta_id=?", (aid, mid)); c.commit(); c.close()
+    return RedirectResponse("/metas", 303)
+
+
+@app.post("/metas/{mid}/borrar")
+def borrar_meta(request: Request, mid: int):
+    user(request)
+    c = db()
+    c.execute("DELETE FROM meta_aportes WHERE meta_id=?", (mid,)); c.execute("DELETE FROM metas WHERE id=?", (mid,))
+    c.commit(); c.close()
+    return volver(request, "/metas", msg="Meta eliminada")
+
+
+@app.post("/disponible/horizonte")
+def fijar_horizonte(request: Request, dia: str = Form("")):
+    user(request)
+    c = db()
+    try:
+        d = max(1, min(31, int(dia))) if dia.strip() else 0
+    except ValueError:
+        d = 0
+    c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('horizonte_dia',?)", (str(d or ""),))
+    c.commit(); c.close()
+    return RedirectResponse("/", 303)
+
+
+# ---------- Agenda ----------
+@app.get("/agenda")
+def pagina_agenda(request: Request, dias: int = 60):
+    u = user(request)
+    c = db()
+    ev = agenda.eventos(c, date.today(), max(7, min(dias, 180)))
+    c.close()
+    return render(request, "agenda.html", u=u, grupos=agenda.agrupar(ev), semana=agenda.por_pagar(ev, 7), mes=agenda.por_pagar(ev, 30),
+                  total=len(ev), dias=max(7, min(dias, 180)))

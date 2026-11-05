@@ -1,6 +1,9 @@
 {% extends "base.html" %}{% block t %}Mi cuenta · Cuadre{% endblock %}{% block c %}
 <div class="ph"><div><h1>Mi cuenta</h1><p>{{u.nombre}} · {{u.username}}</p></div><a class="btn line" href="/logout">{{ico('logout',17)}}Salir</a></div>
 <div class="stack"><div class="card flush">
+<a class="li" href="/agenda" style="color:inherit"><span class="chip s" style="--c:#7a1fd6">{{ico('calendar',17)}}</span><div class="t"><b>Agenda</b><small>Todo lo que viene: cuotas, tarjeta, metas</small></div>{{ico('chevr',18)}}</a>
+<a class="li" href="/metas" style="color:inherit"><span class="chip s" style="--c:#0c8599">{{ico('target',17)}}</span><div class="t"><b>Metas de ahorro</b><small>Mensuales y por objetivo</small></div>{{ico('chevr',18)}}</a>
+<a class="li" href="/asesor" style="color:inherit"><span class="chip s" style="--c:#d6336c">{{ico('star',17)}}</span><div class="t"><b>Asesor con IA</b><small>Consejos sobre tus finanzas y tu tarjeta</small></div>{{ico('chevr',18)}}</a>
 <a class="li" href="/avisos" style="color:inherit"><span class="chip s">{{ico('bell',17)}}</span><div class="t"><b>Avisos y recordatorios</b><small>Pagos, presupuestos, extractos</small></div>{{ico('chevr',18)}}</a>
 <a class="li" href="/cuentas" style="color:inherit"><span class="chip s" style="--c:#0c8599">{{ico('wallet',17)}}</span><div class="t"><b>Cuentas</b><small>Ahorros, corriente, bajo monto y 4x1000</small></div>{{ico('chevr',18)}}</a>
 <a class="li" href="/conectar" style="color:inherit"><span class="chip s" style="--c:#f08c00">{{ico('zap',17)}}</span><div class="t"><b>Captura automática</b><small>Notificaciones y correos de alerta</small></div>{{ico('chevr',18)}}</a>

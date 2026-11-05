@@ -15,6 +15,7 @@ from pywebpush import WebPushException, webpush
 import cuentas
 import deudas
 import lector
+import metas
 
 TZ = ZoneInfo(os.environ.get("TZ", "America/Bogota"))
 CONTACTO = os.environ.get("VAPID_CONTACT", "mailto:admin@example.com")
@@ -165,6 +166,15 @@ def revisar(db, pem):
         if ciclo and not ciclo["uso"] and 0 <= ciclo["dias"] <= 7:
             avisar(db, pem, f"manejo:{q['id']}:{ciclo['fin']}", f"Usa tu {q['nombre']} antes del {ciclo['fin']:%d/%m}",
                    f"Si no la usas este ciclo te cobran {cop(q['cuota_manejo'])} de cuota de manejo.", [q["user_id"]], url="/deudas")
+    for mt in c.execute("SELECT * FROM metas WHERE activa=1 AND avisar=1").fetchall():                  # 1d) metas de ahorro
+        aps = c.execute("SELECT * FROM meta_aportes WHERE meta_id=?", (mt["id"],)).fetchall()
+        e = metas.estado_meta(mt, aps, hoy)
+        if e["cumplida"] or e["dias"] is None:
+            continue
+        if (mt["periodo"] == "mensual" and e["dias"] in (5, 2, 1)) or (mt["periodo"] == "total" and e["dias"] in (30, 7, 1)):
+            bono = f" y mantener +{e['bono']:.2f}".replace(".", ",") + " pts de E.A." if mt["bono_ea"] else ""
+            avisar(db, pem, f"meta:{mt['id']}:{hoy:%Y-%m}:{e['dias']}", f"Meta «{mt['nombre']}»: faltan {cop(e['falta'])}",
+                   f"Quedan {e['dias']} día{'s' if e['dias'] != 1 else ''} para cumplirla{bono}.", [mt["user_id"]], url="/metas")
     c.close()
     for r in recs:                                            # 2) recordatorios de la familia
         for k in (0, 1):

@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block t %}Metas · Cuadre{% endblock %}{% block c %}
+<div class="ph"><div><h1>Metas de ahorro</h1><p>Mensuales (como las de las cajitas de Nu) y por objetivo</p></div><button onclick="dmeta.showModal()">{{ico('plus',17)}}Nueva meta</button></div>
+<div class="stack">
+{% for x in lista %}{% set m=x.m %}{% set e=x.e %}<div class="card">
+<div style="display:flex;gap:12px;align-items:center"><span class="chip" style="--c:{{'#0d9b6a' if e.cumplida else '#0c8599'}}">{{ico('check' if e.cumplida else 'target',18)}}</span>
+<div style="flex:1;min-width:0"><b style="font-size:16px">{{m.nombre}}</b><div class="sub" style="margin-top:3px">{{'Cada mes' if m.periodo=='mensual' else 'Objetivo'}} · {{m.responsable}}{% if m.banco %} · {{m.banco}}{% endif %}</div></div>
+<div class="n"><b style="font-size:18px">{{e.aportado|cop}}</b><div class="sub">de {{e.objetivo|cop}}</div></div></div>
+<div class="bar {{'ok' if e.cumplida}}" style="margin:14px 0 8px;--c:#0c8599"><i style="width:{{(e.pct*100)|round|int}}%"></i></div>
+<div class="sub" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>{{(e.pct*100)|round|int}}%{% if e.cumplida %} · <b class="ok">cumplida</b>{% else %} · faltan <b style="color:var(--tx)">{{e.falta|cop}}</b>{% endif %}</span>
+<span>{% if m.periodo=='mensual' %}{{e.dias}} día{{'s' if e.dias!=1}} para fin de mes{% elif e.fin %}hasta el {{e.fin.strftime('%d/%m/%Y')}}{% endif %}</span></div>
+{% if not e.cumplida and e.por_dia %}<div class="sub" style="margin-top:6px">Para llegar: <b style="color:var(--tx)">{{e.por_dia|cop}}</b> por día{% if e.por_mes %} · ≈ <b style="color:var(--tx)">{{e.por_mes|cop}}</b> al mes{% endif %}</div>{% endif %}
+{% if e.bono %}<div style="margin-top:10px"><span class="pill {{'ok' if e.cumplida else 'warn'}}">{{ico('star',13)}}{% if e.cumplida %}Cumplida: ganas +{{('%.2f'|format(e.bono)).replace('.',',')}} pts de E.A.{% else %}Si la cumples: +{{('%.2f'|format(e.bono)).replace('.',',')}} pts de E.A.{% endif %}</span></div>{% endif %}
+<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">{% if not e.cumplida %}<button class="soft" type="button" onclick="aportar({{m.id}},{{m.nombre|tojson|forceescape}},{{(e.falta|round(2))}})">{{ico('plus',16)}}Aportar</button>{% endif %}
+<form method="post" action="/metas/{{m.id}}/borrar" onsubmit="return confirm('¿Eliminar esta meta y sus aportes?')"><button class="line del">Quitar</button></form></div>
+{% if x.aportes %}<details class="how" style="margin-top:6px"><summary style="font-size:13px;font-weight:600">{{ico('receipt',15)}}Aportes ({{x.aportes|length}})</summary>
+{% for a in x.aportes[:8] %}<div class="li" style="padding:6px 0"><div class="t"><b>{{a.monto|cop}}</b><small>{{a.fecha}}</small></div><form method="post" action="/metas/{{m.id}}/aporte/{{a.id}}/borrar"><button class="ghost del" title="Quitar">{{ico('x',15)}}</button></form></div>{% endfor %}</details>{% endif %}</div>
+{% else %}<div class="card empty">{{ico('target',32)}}<div style="margin-bottom:10px">Aún no tienes metas</div><button onclick="dmeta.showModal()">Crear la primera</button></div>{% endfor %}</div>
+<dialog id="dmeta"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px">Nueva meta</h2><button class="ghost" type="button" onclick="dmeta.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" action="/metas"><label class="f">Nombre<input name="nombre" placeholder="Meta de cajitas Nu, Vacaciones…" required></label>
+<div class="tipo"><label><input type="radio" name="periodo" value="mensual" checked onchange="tmeta()">Cada mes</label><label class="in"><input type="radio" name="periodo" value="total" onchange="tmeta()">Un objetivo</label></div>
+<div class="frm row2"><label class="f"><span id="dm-l">Aporte del mes</span><input name="objetivo" inputmode="decimal" placeholder="$ 300.000" required></label>
+<label class="f" id="dm-f" style="display:none">Fecha límite (opcional)<input type="date" name="fecha_limite"></label></div>
+<div class="frm row2"><label class="f">Bono de tasa si la cumples (puntos E.A.)<input name="bono_ea" inputmode="decimal" placeholder="0,5 en Nu"></label>
+<label class="f">Cuenta (opcional)<input name="banco" placeholder="Nu"></label></div>
+<label class="f">De quién<select name="persona">{% for x in usuarios_m %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
+<p class="sub">Las metas mensuales empiezan de cero cada mes y te avisamos cuando falten pocos días y todavía no las hayas cumplido.</p>
+<button class="btn lg" style="justify-content:center">Guardar meta</button></form></dialog>
+<dialog id="dap"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:17px" id="dap-t">Aportar</h2><button class="ghost" type="button" onclick="dap.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" id="dap-f"><label class="f">Valor<input name="monto" id="dap-m" inputmode="decimal" required></label><label class="f">Fecha<input type="date" name="fecha" value="{{hoy}}"></label>
+<button style="justify-content:center">Guardar aporte</button></form></dialog>
+<script>function tmeta(){const t=document.querySelector('input[name=periodo]:checked').value==='total';document.getElementById('dm-l').textContent=t?'Valor del objetivo':'Aporte del mes';document.getElementById('dm-f').style.display=t?'':'none'}
+function aportar(id,n,f){document.getElementById('dap-f').action='/metas/'+id+'/aporte';document.getElementById('dap-t').textContent='Aportar a '+n;document.getElementById('dap-m').value=String(f).replace('.',',');dap.showModal()}</script>{% endblock %}
