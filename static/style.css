@@ -70,7 +70,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:
 .hero .two{display:flex;gap:26px;flex-wrap:wrap}.hero .two div{display:flex;flex-direction:column}.hero .two small{opacity:.75;display:flex;gap:5px;align-items:center}.hero .two b{font-size:18px;font-variant-numeric:tabular-nums}
 .seg{display:inline-flex;align-items:center;background:var(--sf);border:1px solid var(--ln);border-radius:12px;padding:3px}
 .seg a,.seg span{padding:7px 10px;border-radius:9px;color:var(--mu);display:flex;font-weight:700}.seg span{color:var(--tx);padding:7px 14px;min-width:150px;justify-content:center}.seg a:hover{background:var(--soft);color:var(--ac)}
-.alert{display:flex;gap:14px;align-items:center;border-left:4px solid var(--warn)}.alert.x{border-left-color:var(--bad)}.alert.p{border-left-color:var(--ac)}
+.alert{display:flex;gap:14px;align-items:center;border-left:0;box-shadow:inset 4px 0 0 var(--warn);overflow:hidden}.alert.x{box-shadow:inset 4px 0 0 var(--bad)}.alert.p{box-shadow:inset 4px 0 0 var(--ac)}.alert .t{flex:1;min-width:0}.alert>svg{flex:none}
 .alert .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--warnb);color:var(--warn);flex:none}.alert.x .ic{background:var(--badb);color:var(--bad)}.alert.p .ic{background:var(--soft);color:var(--ac)}
 .alert .t{flex:1;min-width:0}
 /* graficos */
