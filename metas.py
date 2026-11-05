@@ -122,10 +122,21 @@ def disponible(c, hoy=None):
     minimo, fecha_min, serie = proyectar(saldo, ingresos, comp, fin)
     gastado_hoy = c.execute(f"""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE monto<0 AND fecha=? AND {avisos.EXC}""",
                             (hoy.isoformat(),)).fetchone()["v"]
-    por_dia = libre / dias if dias > 0 else libre
+    # Ritmo seguro: el saldo tiene que alcanzar en cada pago, no solo al final del mes (si el sueldo llega después, ese pago limita).
+    por_dia, lim_fecha, lim_que = (libre / dias if dias > 0 else libre), None, None
+    bal = saldo
+    ev = [(x["fecha"], 0, x["monto"], x["nombre"]) for x in ingresos] + [(x["fecha"] or fin, 1, -x["monto"], x["que"]) for x in comp]
+    ev.sort(key=lambda e: (e[0], e[1]))
+    for i, (f, _, delta, que) in enumerate(ev):
+        bal += delta
+        if delta < 0 and f < fin and not (i + 1 < len(ev) and ev[i + 1][0] == f and ev[i + 1][1] == 1):
+            n = max((f - hoy).days, 1)
+            if bal / n < por_dia:
+                por_dia, lim_fecha, lim_que = bal / n, f, que
+    por_dia = max(por_dia, 0.0)
     hay_ingresos = c.execute("SELECT 1 FROM ingresos_fijos WHERE activo=1").fetchone() is not None
     return {"saldo": saldo, "comp": comp, "comprometido": total, "libre": libre, "dias": dias, "fin": fin, "por_dia": por_dia,
             "gastado_hoy": gastado_hoy, "restante_hoy": por_dia - gastado_hoy, "es_dia": es_dia,
             "ingresos": ingresos, "ingresos_total": ing_total, "hay_ingresos": hay_ingresos,
-            "minimo": minimo, "fecha_min": fecha_min, "serie": serie,
+            "minimo": minimo, "fecha_min": fecha_min, "serie": serie, "lim_fecha": lim_fecha, "lim_que": lim_que,
             "estado": "mal" if (libre < 0 or (minimo is not None and minimo < 0)) else ("justo" if por_dia < 20000 else "bien")}
