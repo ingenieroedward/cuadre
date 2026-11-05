@@ -212,7 +212,7 @@ def init():
                               ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
                               ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
                               ("asesor_hist", "firma", "TEXT"), ("asesor_hist", "tok_in", "INTEGER DEFAULT 0"), ("asesor_hist", "tok_out", "INTEGER DEFAULT 0"),
-                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("cuentas", "manejo_cond", "TEXT DEFAULT 'siempre'"), ("pagos_tarjeta", "corte", "TEXT"), ("rend_cfg", "cajitas_base", "REAL"), ("rend_cfg", "base_fecha", "TEXT"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
+                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("cuentas", "manejo_cond", "TEXT DEFAULT 'siempre'"), ("pagos_tarjeta", "corte", "TEXT"), ("rend_cfg", "cajitas_base", "REAL"), ("rend_cfg", "base_fecha", "TEXT"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL"), ("recordatorios", "fecha", "TEXT"), ("recordatorios", "monto", "REAL"), ("recordatorios", "repite", "TEXT DEFAULT 'mensual'")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
@@ -783,6 +783,28 @@ def nuevo_recordatorio(request: Request, titulo: str = Form(...), dia: int = For
               (titulo.strip()[:80], max(1, min(31, dia)), max(0, min(15, antes)), para))
     c.commit(); c.close()
     return volver(request, "/avisos", msg="Recordatorio creado")
+
+
+@app.post("/agenda/evento")
+def nuevo_evento(request: Request, titulo: str = Form(...), fecha: str = Form(...), monto: str = Form(""), repite: str = Form("no"),
+                 antes: int = Form(1)):
+    u = user(request)
+    try:
+        f = date.fromisoformat(fecha)
+    except ValueError:
+        return volver(request, "/agenda", err="Elige la fecha")
+    v = None
+    if monto.strip():
+        try:
+            v = abs(captura.numero_es(monto))
+        except ValueError:
+            return volver(request, "/agenda", err="Escribe el valor en números")
+    repite = repite if repite in ("no", "mensual", "anual") else "no"
+    c = db()
+    c.execute("INSERT INTO recordatorios(titulo,dia,antes,para,fecha,monto,repite) VALUES(?,?,?,?,?,?,?)",
+              (titulo.strip()[:80], f.day, max(0, min(15, antes)), u["id"], f.isoformat(), v, repite))
+    c.commit(); c.close()
+    return volver(request, "/agenda", msg="Agregado a la agenda")
 
 
 @app.post("/avisos/recordatorio/{rid}/borrar")

@@ -46,11 +46,20 @@ def eventos(c, hoy=None, dias=60):
             add(ciclo["fin"], f"Usa tu {q['nombre']} para evitar la cuota de manejo", "Aún no la usas en este ciclo",
                 q["cuota_manejo"], "uso", "/deudas", "card", "#c98200")
     for r in c.execute("SELECT * FROM recordatorios WHERE activo=1").fetchall():
-        for k in range(0, 4):
-            y, m = _mes_mas(hoy, k)
-            f = date(y, m, min(r["dia"], calendar.monthrange(y, m)[1]))
+        rep = r["repite"] or "mensual"
+        if r["fecha"] and rep != "mensual":
+            f0 = date.fromisoformat(r["fecha"])
+            fechas = [f0] if rep == "no" else [date(hoy.year + k, f0.month, min(f0.day, calendar.monthrange(hoy.year + k, f0.month)[1])) for k in (0, 1)]
+            det = "Cada año" if rep == "anual" else "Evento de la agenda"
+        else:
+            fechas = []
+            for k in range(0, 4):
+                y, m = _mes_mas(hoy, k)
+                fechas.append(date(y, m, min(r["dia"], calendar.monthrange(y, m)[1])))
+            det = "Recordatorio mensual"
+        for f in fechas:
             if f >= hoy:
-                add(f, r["titulo"], "Recordatorio mensual", None, "recordatorio", "/avisos", "bell", "#7a1fd6")
+                add(f, r["titulo"], det, r["monto"], "recordatorio", "/avisos", "bell", "#7a1fd6")
     for m_ in c.execute("SELECT * FROM metas WHERE activa=1").fetchall():
         aps = c.execute("SELECT * FROM meta_aportes WHERE meta_id=?", (m_["id"],)).fetchall()
         e = metas.estado_meta(m_, aps, hoy)

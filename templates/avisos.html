@@ -14,7 +14,7 @@
 <label class="f">Hora (0 a 23)<input name="hora_aviso" type="number" min="0" max="23" value="{{hora}}"></label><button>Guardar</button></form></div></div>
 <div class="g2">
 <div class="card"><div class="hd"><h2>{{ico('calendar',19)}}Recordatorios de la familia</h2></div>
-{% for r in recs %}<div class="li"><span class="chip s">{{ico('bell',17)}}</span><div class="t"><b>{{r.titulo}}</b><small>Día {{r.dia}} de cada mes{% if r.antes %} · {{r.antes}} día(s) antes{% endif %} · {{r.nombre or 'toda la familia'}}</small></div>
+{% for r in recs %}<div class="li"><span class="chip s">{{ico('bell',17)}}</span><div class="t"><b>{{r.titulo}}</b><small>{% if r.fecha and r.repite=='no' %}{{r.fecha[8:]}}/{{r.fecha[5:7]}}/{{r.fecha[:4]}}{% elif r.fecha and r.repite=='anual' %}Cada año el {{r.fecha[8:]}}/{{r.fecha[5:7]}}{% else %}Día {{r.dia}} de cada mes{% endif %}{% if r.antes %} · {{r.antes}} día(s) antes{% endif %} · {{r.nombre or 'toda la familia'}}</small></div>
 <form method="post" action="/avisos/recordatorio/{{r.id}}/borrar" onsubmit="return confirm('¿Borrar?')"><button class="ghost del">{{ico('trash',17)}}</button></form></div>
 {% else %}<div class="empty">{{ico('calendar',28)}}<div>Agrega el arriendo, los servicios…</div></div>{% endfor %}
 <form class="frm" method="post" action="/avisos/recordatorio" style="margin-top:14px;padding-top:16px;border-top:1px solid var(--ln)"><label class="f">Qué quieres recordar<input name="titulo" placeholder="Pagar arriendo" required></label>

@@ -177,9 +177,16 @@ def revisar(db, pem):
                    f"Quedan {e['dias']} día{'s' if e['dias'] != 1 else ''} para cumplirla{bono}.", [mt["user_id"]], url="/metas")
     c.close()
     for r in recs:                                            # 2) recordatorios de la familia
-        for k in (0, 1):
-            y, m = hoy.year + (hoy.month + k - 1) // 12, (hoy.month + k - 1) % 12 + 1
-            obj = date(y, m, min(r["dia"], calendar.monthrange(y, m)[1]))
+        rep = r["repite"] or "mensual"
+        if r["fecha"] and rep != "mensual":
+            f0 = date.fromisoformat(r["fecha"])
+            cand = [f0] if rep == "no" else [date(hoy.year + k, f0.month, min(f0.day, calendar.monthrange(hoy.year + k, f0.month)[1])) for k in (0, 1)]
+        else:
+            cand = []
+            for k in (0, 1):
+                y, m = hoy.year + (hoy.month + k - 1) // 12, (hoy.month + k - 1) % 12 + 1
+                cand.append(date(y, m, min(r["dia"], calendar.monthrange(y, m)[1])))
+        for obj in cand:
             if hoy == obj - timedelta(days=r["antes"]):
                 cuerpo = "Es hoy" if r["antes"] == 0 else f"Falta{'n' if r['antes'] > 1 else ''} {r['antes']} día{'s' if r['antes'] > 1 else ''} ({obj:%d/%m})"
                 avisar(db, pem, f"rec:{r['id']}:{hoy}", r['titulo'], cuerpo, [r["para"]] if r["para"] else None)
