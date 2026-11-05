@@ -5,23 +5,29 @@
 <meta name="theme-color" content="#7a1fd6"><link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" href="/static/icon-192.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<script src="/static/theme.js"></script><link rel="stylesheet" href="/static/style.css?v=41"></head><body class="{{'app' if u}}">
+<script src="/static/theme.js"></script><link rel="stylesheet" href="/static/style.css?v=42"></head><body class="{{'app' if u}}">
 {% if u %}{% set p=request.url.path %}
 <aside class="side"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a>
-<nav><a href="/" class="{{'on' if p=='/'}}">{{ico('chart')}}Resumen</a>
+<nav>
+<div class="grp">Día a día</div>
+<a href="/" class="{{'on' if p=='/'}}">{{ico('chart')}}Resumen</a>
 <a href="/movimientos" class="{{'on' if p.startswith('/mov')}}">{{ico('receipt')}}Movimientos</a>
 <a href="/subir" class="{{'on' if p=='/subir'}}">{{ico('upload')}}Subir extractos</a>
 <a href="/conectar" class="{{'on' if p=='/conectar'}}">{{ico('zap')}}Captura automática{% if n_revisar %}<span class="pill warn" style="margin-left:auto">{{n_revisar}}</span>{% endif %}</a>
-<a href="/deudas" class="{{'on' if p.startswith('/deudas')}}">{{ico('bank')}}Deudas</a>
+<div class="grp">Plan</div>
 <a href="/agenda" class="{{'on' if p=='/agenda'}}">{{ico('calendar')}}Agenda</a>
 <a href="/ingresos" class="{{'on' if p.startswith('/ingresos')}}">{{ico('up')}}Ingresos</a>
+<a href="/deudas" class="{{'on' if p.startswith('/deudas')}}">{{ico('bank')}}Deudas</a>
 <a href="/metas" class="{{'on' if p.startswith('/metas')}}">{{ico('target')}}Metas</a>
 <a href="/asesor" class="{{'on' if p.startswith('/asesor')}}">{{ico('star')}}Asesor IA</a>
+<div class="grp">Ajustes</div>
 <a href="/cuentas" class="{{'on' if p.startswith('/cuentas')}}">{{ico('wallet')}}Cuentas</a>
 <a href="/avisos" class="{{'on' if p.startswith('/avisos')}}">{{ico('bell')}}Avisos</a>
-<a href="/miembros" class="{{'on' if p=='/miembros'}}">{{ico('users')}}Familia</a></nav>
-<div class="me"><span class="av">{{u.nombre|inicial}}</span><div style="flex:1;min-width:0"><b>{{u.nombre}}</b><a href="/cuenta" style="padding:0;display:inline"><small>Mi cuenta</small></a></div>
-<button class="th" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button><a href="/logout" title="Salir">{{ico('logout')}}</a></div></aside>
+<a href="/miembros" class="{{'on' if p=='/miembros'}}">{{ico('users')}}Familia</a>
+</nav>
+<div class="me"><a class="who" href="/cuenta" title="Mi cuenta"><span class="av">{{u.nombre|inicial}}</span><span class="nm"><b>{{u.nombre}}</b><small>{{'Administrador' if u.admin else 'Miembro'}} · Mi cuenta</small></span></a>
+<div class="me-act"><button class="th" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',17)}}</span><span class="l">{{ico('sun',17)}}</span><span class="d">{{ico('moon',17)}}</span><em>Tema</em></button>
+<a class="so" href="/logout" title="Cerrar sesión">{{ico('logout',17)}}<em>Salir</em></a></div></div></aside>
 <header class="mtop"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a><span class="sp"></span><button class="th" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button><a href="/cuenta" class="av s">{{u.nombre|inicial}}</a></header>
 <nav class="tabs"><a href="/" class="{{'on' if p=='/'}}">{{ico('chart',22)}}Resumen</a><a href="/movimientos" class="{{'on' if p.startswith('/mov')}}">{{ico('receipt',22)}}Movs</a>
 <a href="/subir" class="{{'on' if p=='/subir'}}">{{ico('upload',22)}}Subir</a><a href="/deudas" class="{{'on' if p.startswith('/deudas')}}">{{ico('bank',22)}}Deudas</a>
