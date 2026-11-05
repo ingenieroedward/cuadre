@@ -266,3 +266,7 @@ button.ocupado{opacity:.85;cursor:progress}button:disabled{cursor:not-allowed}
 .hero .lbl{position:relative;z-index:1}
 .hero-why{display:inline-flex;align-items:center;margin-left:6px;padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.2);color:#fff;font-weight:700;font-size:13px;text-decoration:none;-webkit-tap-highlight-color:transparent}
 .hero-why:active{background:rgba(255,255,255,.35)}
+
+.res-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-row .n{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:560px){.res-row{flex-wrap:wrap;row-gap:10px}.res-row .t{flex:1 1 calc(100% - 56px)}.res-row .n{margin-left:46px;flex:1 1 100%}.res-row .t b.nm{display:block;-webkit-line-clamp:unset;white-space:normal;overflow-wrap:anywhere}}

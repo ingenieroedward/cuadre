@@ -14,8 +14,8 @@
 <div style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><button class="btn lg">{{ico('upload',18)}}Subir y leer</button>
 <span class="sub" style="display:flex;gap:7px;align-items:center">{{ico('lock',16)}}La clave no se guarda. Tampoco el PDF, solo los movimientos.</span></div></form>
 {% if resultado %}<div class="card flush"><div class="hd" style="padding:18px 20px 0"><h2>{{ico('check',19)}}Resultado</h2></div>
-{% for r in resultado %}<div class="li"><span class="chip s" style="--c:{{'#0d9b6a' if r.e=='OK' else '#dc3a52'}}">{{ico('file' if r.e=='OK' else 'alert',17)}}</span>
-<div class="t"><b>{{r.f}}</b><small style="white-space:normal">{{r.e}}</small>
+{% for r in resultado %}<div class="li res-row"><span class="chip s" style="--c:{{'#0d9b6a' if r.e=='OK' else '#dc3a52'}}">{{ico('file' if r.e=='OK' else 'alert',17)}}</span>
+<div class="t"><b title="{{r.f}}" class="nm">{{r.f}}</b><small style="white-space:normal">{{r.e}}</small>
 {% for tipo,txt in r.notas %}<div class="sub {{tipo}}" style="display:flex;gap:7px;margin-top:4px;align-items:flex-start">{{ico('check' if tipo=='ok' else 'alert',16)}}<span>{{txt}}</span></div>{% endfor %}</div>
 <div class="n"><span class="pill">{{r.l}} leídos</span> <span class="pill ok">{{r.n}} nuevos</span></div></div>
 {% if r.diag %}<details class="how" style="padding:0 20px 14px"><summary>{{ico('search',17)}}Ver cómo leí este PDF</summary>
