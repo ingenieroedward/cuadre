@@ -12,10 +12,10 @@
 <div class="n">{% if x.saldo is not none %}<b style="font-size:17px">{{x.saldo|cop}}</b><div class="sub">saldo estimado</div>{% else %}<span class="sub">sin saldo</span>{% endif %}</div></div>
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><span class="pill">{{tipos[q.tipo]}}</span>
 {% if q.tipo!='tarjeta' %}{% if q.exenta %}<span class="pill ok">{{ico('check',13)}}Exenta de 4x1000</span>{% else %}<span class="pill warn">Paga 4x1000</span>{% endif %}{% endif %}{% if not x.manejo %}<span class="pill ok" style="background:var(--sf2);color:var(--mu)">Sin cuota de manejo</span>{% endif %}<span class="pill" style="background:var(--sf2);color:var(--mu)">{{x.movs}} {{'movimiento' if x.movs==1 else 'movimientos'}}</span></div>
-{% if x.manejo %}<div class="sub" style="margin-top:10px">Cuota de manejo <b>{{x.manejo|cop}}</b>/mes · {{(x.manejo*12)|cop}} al año{% if x.cobros %} · cobrado en el extracto: {{x.cobros|cop}}{% endif %}</div>{% endif %}
+{% if x.manejo %}<div class="sub" style="margin-top:10px">Cuota de manejo <b>{{x.manejo|cop}}</b>{% if x.cond=='sin_uso' %} solo si no la usas en el ciclo{% if x.ciclo %} · {{'este ciclo ya la usaste: $0' if x.ciclo.uso else 'aún no la usas este ciclo (hasta el '+x.ciclo.fin.strftime('%d/%m')+')'}}{% endif %}{% else %}/mes · {{(x.manejo*12)|cop}} al año{% endif %}{% if x.cobros %} · cobrado en el extracto: {{x.cobros|cop}}{% endif %}</div>{% endif %}
 {% if not q.exenta and q.tipo!='tarjeta' and x.salidas %}<div class="sub" style="margin-top:6px">Este mes salieron {{x.salidas|cop}}: 4x1000 estimado <b>{{x.gmf|cop}}</b>.</div>{% endif %}
 {% if x.costo %}<div class="sub" style="margin-top:6px">Costo de esta cuenta este mes: <b>{{x.costo|cop}}</b></div>{% endif %}
-<div style="display:flex;gap:8px;margin-top:12px"><button class="line" type="button" data-c='{{ {"id":q.id,"nombre":q.nombre,"entidad":q.entidad,"tipo":q.tipo,"exenta":q.exenta,"ultimos4":q.ultimos4,"manejo":q.cuota_manejo}|tojson|forceescape }}' onclick="abrirCuenta(JSON.parse(this.dataset.c))">Editar</button>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="line" type="button" data-c='{{ {"id":q.id,"nombre":q.nombre,"entidad":q.entidad,"tipo":q.tipo,"exenta":q.exenta,"ultimos4":q.ultimos4,"manejo":q.cuota_manejo,"cond":q.manejo_cond}|tojson|forceescape }}' onclick="abrirCuenta(JSON.parse(this.dataset.c))">Editar</button>
 <form method="post" action="/cuentas/{{q.id}}/borrar" onsubmit="return confirm('{{'Tiene historial: se archivará y sus movimientos se conservan.' if x.movs else 'Se eliminará la cuenta.'}} ¿Continuar?')"><button class="line del">Quitar</button></form></div></div>
 {% else %}<div class="card empty">{{ico('wallet',32)}}<div style="margin-bottom:10px">Aún no tienes cuentas. Se crean solas al subir un extracto, o agrégalas aquí.</div><button onclick="abrirCuenta()">Agregar una cuenta</button></div>{% endfor %}</div>
 <dialog id="dcuenta"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px" id="dc-t">Nueva cuenta</h2><button class="ghost" type="button" onclick="dcuenta.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
@@ -26,6 +26,7 @@
 <datalist id="dc-ent"><option>Nu</option><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Davivienda</option><option>BBVA</option><option>Banco de Bogotá</option></datalist>
 <label class="f">Tipo<select name="tipo" id="dc-t2"><option value="ahorros">Cuenta de ahorros</option><option value="corriente">Cuenta corriente</option><option value="bajo_monto">Depósito de bajo monto</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
 <label class="f" id="dc-mw"><span id="dc-ml">Cuota de manejo al mes</span><input name="cuota_manejo" id="dc-m" inputmode="decimal" placeholder="$ 0"><span style="font-weight:500" id="dc-mh">Si no tiene, déjalo vacío.</span></label>
+<label class="f" id="dc-cw">¿Cuándo se cobra?<select name="manejo_cond" id="dc-cond"><option value="siempre">Todos los meses</option><option value="sin_uso">Solo si no uso la tarjeta en el ciclo (si la uso, es $0)</option></select></label>
 <label class="f" id="dc-p">De quién<select name="persona">{% for x in usuarios_c %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
 <label class="f" id="dc-xw" style="flex-direction:row;align-items:center;gap:10px;color:var(--tx);font-size:14px;font-weight:600"><input type="checkbox" name="exenta" value="1" id="dc-x" style="width:20px;height:20px;padding:0">Esta cuenta está exenta del 4x1000</label>
 <button style="justify-content:center" id="dc-b">Guardar cuenta</button></form></dialog>
@@ -34,12 +35,13 @@ const $=id=>document.getElementById(id);
 function formCuenta(){const tipo=$("dc-t2").value,tj=tipo==="tarjeta",bm=tipo==="bajo_monto";
  $("dc-xw").style.display=tj?"none":"";                       // la tarjeta no paga 4x1000 por sí misma
  $("dc-mw").style.display=(bm&&!$("dc-m").value)?"none":"";    // los depósitos de bajo monto normalmente no tienen cuota de manejo
+ $("dc-cw").style.display=tj?"":"none";
  $("dc-ml").textContent=tj?"Cuota de manejo de la tarjeta al mes":"Cuota de manejo de la cuenta al mes";
  $("dc-mh").textContent=tj?"Es lo que te cobra el banco por tener la tarjeta. Si no tiene, déjalo vacío.":"Solo si tu banco te cobra una por la cuenta. Si no, déjalo vacío.";}
 function abrirCuenta(c){
  const f=$("dc-f");
  if(c){f.action="/cuentas/"+c.id;$("dc-t").textContent="Editar cuenta";$("dc-n").value=c.nombre;$("dc-e").value=c.entidad||"";$("dc-4").value=c.ultimos4||"";
-  $("dc-t2").value=c.tipo;$("dc-x").checked=!!c.exenta;$("dc-m").value=c.manejo?String(c.manejo).replace(".",","):"";$("dc-p").style.display="none";f.dataset.editando="1";}
+  $("dc-t2").value=c.tipo;$("dc-x").checked=!!c.exenta;$("dc-m").value=c.manejo?String(c.manejo).replace(".",","):"";$("dc-cond").value=c.cond||"siempre";$("dc-p").style.display="none";f.dataset.editando="1";}
  else{f.reset();f.action="/cuentas";$("dc-t").textContent="Nueva cuenta";$("dc-p").style.display="";f.dataset.editando="";}
  formCuenta();$("dcuenta").showModal();}
 document.addEventListener("change",e=>{if(e.target.id==="dc-t2"){if(!$("dc-f").dataset.editando)$("dc-x").checked=(e.target.value==="bajo_monto");formCuenta()}});

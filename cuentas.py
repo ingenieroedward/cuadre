@@ -7,6 +7,8 @@ GMF = 0.004          # 4 x 1000
 
 def defaults(nombre):
     n = (nombre or "").lower()
+    if n.startswith("tarjeta"):
+        return "tarjeta", 0
     if any(k in n for k in ("nequi", "daviplata", "dale", "movii", "bre-b")):
         return "bajo_monto", 0       # la persona la marca como exenta si lo está (Nequi, por ejemplo, puede cobrarlo)
     if n.strip() == "nu" or n.startswith("nu "):
@@ -31,10 +33,37 @@ def asegurar_tarjeta(c, user_id, banco):
               (user_id, f"Tarjeta {banco}", banco))
 
 
-def manejo_tarjeta(c, user_id, banco):
-    r = c.execute("""SELECT cuota_manejo FROM cuentas WHERE user_id=? AND tipo='tarjeta' AND activa=1
+def ficha_tarjeta(c, user_id, banco):
+    return c.execute("""SELECT * FROM cuentas WHERE user_id=? AND tipo='tarjeta' AND activa=1
         AND (lower(entidad)=lower(?) OR lower(nombre)=lower(?)) ORDER BY id LIMIT 1""", (user_id, banco, f"Tarjeta {banco}")).fetchone()
+
+
+def manejo_tarjeta(c, user_id, banco):
+    r = ficha_tarjeta(c, user_id, banco)
     return (r["cuota_manejo"] or 0.0) if r else None
+
+
+def ciclo_tarjeta(c, user_id, banco, hoy=None):
+    """Ciclo de facturación actual de la tarjeta y si ya se usó en él (para las cuotas que se cobran solo si no la usas)."""
+    from datetime import date, timedelta
+    import deudas
+    hoy = hoy or date.today()
+    p = c.execute("""SELECT * FROM pagos_tarjeta WHERE user_id=? AND banco=? ORDER BY fecha_limite DESC, id DESC LIMIT 1""",
+                  (user_id, banco)).fetchone()
+    if not p:
+        return None
+    corte = date.fromisoformat(p["corte"]) if p["corte"] else date.fromisoformat(p["fecha_limite"]) - timedelta(days=20)
+    while corte + timedelta(days=0) < hoy and deudas.add_months(corte, 1) <= hoy:
+        corte = deudas.add_months(corte, 1)           # el corte más reciente que ya pasó
+    inicio = corte + timedelta(days=1)
+    fin = deudas.add_months(corte, 1)
+    f = ficha_tarjeta(c, user_id, banco)
+    nombres = [f"Tarjeta {banco}"] + ([f["nombre"]] if f else [])
+    q = ",".join("?" * len(nombres))
+    n = c.execute(f"""SELECT COUNT(*) n FROM movs WHERE user_id=? AND monto<0 AND fecha>=? AND fecha<=?
+        AND categoria NOT IN ('Pago de tarjeta','Reversado','Devoluciones') AND (origen='tarjeta' OR banco IN ({q}))""",
+                  [user_id, inicio.isoformat(), fin.isoformat()] + nombres).fetchone()["n"]
+    return {"inicio": inicio, "fin": fin, "dias": (fin - hoy).days, "compras": n, "uso": n > 0}
 
 
 def resolver(c, user_id, entidad):
@@ -77,10 +106,20 @@ def listado(c, mes, saldos_actuales):
         s = saldo.get((q["user_id"], q["nombre"]))
         gmf = 0.0 if (q["exenta"] or q["tipo"] == "tarjeta") else salidas["v"] * GMF
         manejo = q["cuota_manejo"] or 0.0
-        # si el extracto ya trae el cobro, se usa el real; si no, la cuota configurada
-        costo = gmf + (cobros if cobros > 0 else manejo)
+        cond = (q["manejo_cond"] if "manejo_cond" in q.keys() else "siempre") or "siempre"
+        ciclo = None
+        if q["tipo"] == "tarjeta" and cond == "sin_uso":
+            ciclo = ciclo_tarjeta(c, q["user_id"], q["entidad"] or q["nombre"])
+            if ciclo and ciclo["uso"]:
+                manejo_mes = 0.0                     # la usaste en este ciclo: no se cobra
+            else:
+                manejo_mes = manejo
+        else:
+            manejo_mes = manejo
+        # si el extracto ya trae el cobro, se usa el real; si no, la cuota que corresponde
+        costo = gmf + (cobros if cobros > 0 else manejo_mes)
         out.append({"q": q, "salidas": salidas["v"], "gmf": gmf, "saldo": s["estimado"] if s else None, "movs": total,
-                    "manejo": manejo, "cobros": cobros, "costo": costo})
+                    "manejo": manejo, "cobros": cobros, "costo": costo, "cond": cond, "ciclo": ciclo, "manejo_mes": manejo_mes})
     return out
 
 

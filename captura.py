@@ -100,6 +100,8 @@ def interpretar(texto, titulo="", banco="", hoy=None):
     g = [n.find(k) for k in GASTO if k in n]
     i = [n.find(k) for k in INGRESO if k in n]
     base = {"monto": monto, "descripcion": descripcion(texto, titulo), "fecha": parse_fecha(completo, hoy), "banco": banco_de(completo, banco)}
+    if re.search(r"tarjeta\s+(de\s+)?cr[eé]dito|nucontrol|tarjeta morada", n) and base["banco"] not in ("Otro",):
+        base["banco"] = f"Tarjeta {base['banco']}"       # compra con la tarjeta de crédito, no con la cuenta
     if g and (not i or min(g) < min(i)):
         return {"estado": "creado", "tipo": "gasto", **base}
     if i:

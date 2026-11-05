@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
+import cuentas
 import deudas
 import lector
 
@@ -159,6 +160,11 @@ def revisar(db, pem):
             else:
                 titulo, cuerpo = f"Te toca cobrar: {d['nombre']} ({quedan})", f"Cuota {cop(e['proxima_monto'])} · te deben {cop(e['saldo'])}"
             avisar(db, pem, f"deuda:{d['id']}:{e['cubiertas']}:{dias}", titulo, cuerpo, [d["user_id"]], url="/deudas")
+    for q in c.execute("SELECT * FROM cuentas WHERE activa=1 AND tipo='tarjeta' AND manejo_cond='sin_uso' AND cuota_manejo>0").fetchall():
+        ciclo = cuentas.ciclo_tarjeta(c, q["user_id"], q["entidad"] or q["nombre"], hoy)      # 1c) usar la tarjeta para que no cobren la cuota
+        if ciclo and not ciclo["uso"] and 0 <= ciclo["dias"] <= 7:
+            avisar(db, pem, f"manejo:{q['id']}:{ciclo['fin']}", f"Usa tu {q['nombre']} antes del {ciclo['fin']:%d/%m}",
+                   f"Si no la usas este ciclo te cobran {cop(q['cuota_manejo'])} de cuota de manejo.", [q["user_id"]], url="/deudas")
     c.close()
     for r in recs:                                            # 2) recordatorios de la familia
         for k in (0, 1):

@@ -214,13 +214,15 @@ def info_tarjeta(todo):
     fecha = _fecha(int(m[3]), MESES.get(m[2].lower(), 0), int(m[1])) if m else None
     if not fecha:
         return None
+    mc = re.search(r"Fecha de corte.{0,200}?(\d{1,2})\s+" + mes + r"\s+(20\d{2})", t, re.I | re.S)
+    corte = _fecha(int(mc[3]), MESES.get(mc[2].lower(), 0), int(mc[1])) if mc else None
     din = r"\$\s*([\d.]+,\d{2})"
     cupo = _dinero(r"cupo definido.{0,60}?" + din, t)
     usado = _dinero(r"\bUsado\b.{0,40}?" + din, t)
     disponible = _dinero(r"\bDisponible\b.{0,40}?" + din, t)
     if cupo is not None and usado is not None:
         disponible = cupo - usado          # si el PDF pone las etiquetas juntas y luego los valores, "Disponible" puede leerse mal
-    return {"fecha_limite": fecha, "cupo": cupo, "usado": usado, "disponible": disponible,
+    return {"fecha_limite": fecha, "corte": corte, "cupo": cupo, "usado": usado, "disponible": disponible,
             "pago_minimo": _dinero(r"PAGO M[IÍ]NIMO.{0,60}?" + din, t),
             "a_pagar": _dinero(r"Deuda a pagar este mes.{0,60}?" + din, t),
             "deuda_total": _dinero(r"DEUDA TOTAL.{0,100}?" + din, t),

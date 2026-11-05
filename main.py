@@ -163,7 +163,7 @@ def init():
                               ("users", "token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
                               ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
                               ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
-                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("rend_cfg", "cajitas_base", "REAL"), ("rend_cfg", "base_fecha", "TEXT"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
+                              ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("cuentas", "manejo_cond", "TEXT DEFAULT 'siempre'"), ("pagos_tarjeta", "corte", "TEXT"), ("rend_cfg", "cajitas_base", "REAL"), ("rend_cfg", "base_fecha", "TEXT"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
@@ -529,12 +529,12 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                 pass  # duplicado: ya estaba cargado
         notas = []
         if info and "fecha_limite" in info:
-            c.execute("""INSERT INTO pagos_tarjeta(user_id,banco,fecha_limite,pago_minimo,a_pagar,deuda_total,cupo,usado,disponible)
-                VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,banco,fecha_limite) DO UPDATE SET
+            c.execute("""INSERT INTO pagos_tarjeta(user_id,banco,fecha_limite,pago_minimo,a_pagar,deuda_total,cupo,usado,disponible,corte)
+                VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,banco,fecha_limite) DO UPDATE SET
                 pago_minimo=excluded.pago_minimo, a_pagar=excluded.a_pagar, deuda_total=excluded.deuda_total,
-                cupo=excluded.cupo, usado=excluded.usado, disponible=excluded.disponible""",
+                cupo=excluded.cupo, usado=excluded.usado, disponible=excluded.disponible, corte=excluded.corte""",
                       (persona, banco, info["fecha_limite"], info["pago_minimo"], info["a_pagar"], info["deuda_total"],
-                       info.get("cupo"), info.get("usado"), info.get("disponible")))
+                       info.get("cupo"), info.get("usado"), info.get("disponible"), info.get("corte")))
             costos = {k: v for k, v in (info.get("costos") or {}).items() if v}
             if costos:
                 notas.append(("warn", "Costos de la tarjeta este corte: " + ", ".join(f"{k.lower()} {avisos.cop(v)}" for k, v in costos.items()) + "."))
@@ -1039,7 +1039,8 @@ def cargar_tarjetas(c, todas):
                   and not x["e"]["pagada"]]
         dias = (date.fromisoformat(t["fecha_limite"]) - date.today()).days
         uso = (t["usado"] / t["cupo"]) if t["cupo"] and t["usado"] is not None else None
-        out.append({"t": t, "cuotas": cuotas, "dias": dias, "uso": uso, "manejo": cuentas.manejo_tarjeta(c, t["user_id"], t["banco"])})
+        out.append({"t": t, "cuotas": cuotas, "dias": dias, "uso": uso, "manejo": cuentas.manejo_tarjeta(c, t["user_id"], t["banco"]),
+                    "ficha": cuentas.ficha_tarjeta(c, t["user_id"], t["banco"]), "ciclo": cuentas.ciclo_tarjeta(c, t["user_id"], t["banco"])})
     return out
 
 
@@ -1163,26 +1164,27 @@ def pagina_cuentas(request: Request):
                   gmf_total=sum(x["gmf"] for x in lista), costo_total=sum(x["costo"] for x in lista))
 
 
-def _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, manejo=""):
+def _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, manejo="", cond="siempre"):
     try:
         mj = abs(captura.numero_es(manejo)) if manejo.strip() else 0.0
     except ValueError:
         mj = 0.0
     return (nombre.strip()[:60], (entidad.strip() or nombre.strip())[:60], tipo if tipo in cuentas.TIPOS else "ahorros",
-            1 if exenta else 0, "".join(ch for ch in ultimos4 if ch.isdigit())[:4], mj)
+            1 if exenta else 0, "".join(ch for ch in ultimos4 if ch.isdigit())[:4], mj, cond if cond in ("siempre", "sin_uso") else "siempre")
 
 
 @app.post("/cuentas")
 def crear_cuenta(request: Request, nombre: str = Form(...), entidad: str = Form(""), tipo: str = Form("ahorros"),
-                 exenta: str = Form(""), ultimos4: str = Form(""), cuota_manejo: str = Form(""), persona: int = Form(0)):
+                 exenta: str = Form(""), ultimos4: str = Form(""), cuota_manejo: str = Form(""), manejo_cond: str = Form("siempre"),
+                 persona: int = Form(0)):
     u = user(request)
-    n, e, t, ex, l4, mj = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, cuota_manejo)
+    n, e, t, ex, l4, mj, mc = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, cuota_manejo, manejo_cond)
     if not n or n in cuentas.RESERVADOS:
         return volver(request, "/cuentas", err="Ponle un nombre a la cuenta")
     c = db()
     try:
-        c.execute("INSERT INTO cuentas(user_id,nombre,entidad,tipo,exenta,ultimos4,cuota_manejo) VALUES(?,?,?,?,?,?,?)",
-                  (persona or u["id"], n, e, t, ex, l4, mj))
+        c.execute("INSERT INTO cuentas(user_id,nombre,entidad,tipo,exenta,ultimos4,cuota_manejo,manejo_cond) VALUES(?,?,?,?,?,?,?,?)",
+                  (persona or u["id"], n, e, t, ex, l4, mj, mc))
         c.commit()
     except sqlite3.IntegrityError:
         c.close()
@@ -1193,16 +1195,16 @@ def crear_cuenta(request: Request, nombre: str = Form(...), entidad: str = Form(
 
 @app.post("/cuentas/{cid}")
 def editar_cuenta(request: Request, cid: int, nombre: str = Form(...), entidad: str = Form(""), tipo: str = Form("ahorros"),
-                  exenta: str = Form(""), ultimos4: str = Form(""), cuota_manejo: str = Form("")):
+                  exenta: str = Form(""), ultimos4: str = Form(""), cuota_manejo: str = Form(""), manejo_cond: str = Form("siempre")):
     user(request)
-    n, e, t, ex, l4, mj = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, cuota_manejo)
+    n, e, t, ex, l4, mj, mc = _cuenta_form(nombre, entidad, tipo, exenta, ultimos4, cuota_manejo, manejo_cond)
     c = db()
     viejo = c.execute("SELECT * FROM cuentas WHERE id=?", (cid,)).fetchone()
     if not viejo or not n:
         c.close()
         return volver(request, "/cuentas", err="No se encontró la cuenta")
     try:
-        c.execute("UPDATE cuentas SET nombre=?, entidad=?, tipo=?, exenta=?, ultimos4=?, cuota_manejo=? WHERE id=?", (n, e, t, ex, l4, mj, cid))
+        c.execute("UPDATE cuentas SET nombre=?, entidad=?, tipo=?, exenta=?, ultimos4=?, cuota_manejo=?, manejo_cond=? WHERE id=?", (n, e, t, ex, l4, mj, mc, cid))
         if n != viejo["nombre"]:     # el nombre es la llave de los movimientos y saldos de esa cuenta
             for tabla in ("movs", "saldos", "pagos_tarjeta"):
                 c.execute(f"UPDATE {tabla} SET banco=? WHERE user_id=? AND banco=?", (n, viejo["user_id"], viejo["nombre"]))
