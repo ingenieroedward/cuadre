@@ -506,11 +506,26 @@ def revisar_mes(request: Request, mes: str = ""):
         ORDER BY monto LIMIT 12""", (mes,)).fetchall()
     ingresos = c.execute(f"""SELECT m.*, u.nombre FROM movs m JOIN users u ON u.id=m.user_id WHERE {ft} AND m.{EXC} AND monto>0
         ORDER BY monto DESC LIMIT 8""", (mes,)).fetchall()
-    dups = c.execute(f"""SELECT m.fecha, m.banco, m.descripcion, m.monto, COUNT(*) n, GROUP_CONCAT(m.origen) orig FROM movs m
-        WHERE {ft} AND m.{EXC} GROUP BY m.fecha, m.banco, m.descripcion, m.monto HAVING COUNT(*)>1 ORDER BY ABS(m.monto)*COUNT(*) DESC LIMIT 10""", (mes,)).fetchall()
+    dups = c.execute(f"""SELECT m.user_id, m.fecha, m.descripcion, m.monto, COUNT(*) n, GROUP_CONCAT(m.banco, ' y ') bancos,
+        MAX(m.id) copia, COUNT(DISTINCT m.banco) nb FROM movs m WHERE {ft} AND m.{EXC} AND m.estado!='provisional'
+        GROUP BY m.user_id, m.fecha, m.descripcion, m.monto HAVING COUNT(*)>1 AND COUNT(DISTINCT m.banco)>1
+        ORDER BY ABS(m.monto)*COUNT(*) DESC LIMIT 20""", (mes,)).fetchall()
     c.close()
     return render(request, "revisar.html", u=u, mes=mes, tot=tot, fuera=fuera, por_cat=por_cat, por_cuenta=por_cuenta,
                   gastos=gastos, ingresos=ingresos, dups=dups, cats=CATEGORIAS)
+
+
+@app.post("/revisar/limpiar")
+def limpiar_duplicados(request: Request, mes: str = Form(...)):
+    """Borra la copia (la de id más alto) de cada movimiento repetido en dos cuentas distintas del mismo mes."""
+    user(request)
+    c = db()
+    filas = c.execute(f"""SELECT MAX(id) copia FROM movs WHERE substr(fecha,1,7)=? AND estado!='provisional' AND {EXC}
+        GROUP BY user_id, fecha, descripcion, monto HAVING COUNT(*)>1 AND COUNT(DISTINCT banco)>1""", (mes,)).fetchall()
+    for r in filas:
+        c.execute("DELETE FROM movs WHERE id=?", (r["copia"],))
+    c.commit(); c.close()
+    return volver(request, f"/revisar?mes={mes}", msg=f"{len(filas)} duplicado(s) borrado(s)")
 
 
 @app.get("/movimientos")
@@ -632,6 +647,9 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
             k = f"{persona}|{banco}|{m['origen']}|{m['fecha']}|{m['descripcion']}|{m['monto']}"
             vistos[k] = vistos.get(k, 0) + 1
             h = hashlib.sha256(f"{k}|{vistos[k]}".encode()).hexdigest()
+            if m["origen"] == "tarjeta" and c.execute("""SELECT 1 FROM movs WHERE user_id=? AND origen='tarjeta' AND fecha=? AND descripcion=?
+                    AND monto=? AND banco!=?""", (persona, m["fecha"], m["descripcion"], m["monto"], banco)).fetchone():
+                continue   # el mismo cargo de la tarjeta ya está en otra cuenta: no se cuenta dos veces
             try:
                 cur = c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,archivo,estado,fuente)
                     VALUES(?,?,?,?,?,?,?,?,?,'confirmado','extracto')""", (persona, banco, m["fecha"], m["descripcion"], m["monto"],

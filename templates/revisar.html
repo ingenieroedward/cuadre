@@ -6,9 +6,11 @@
 <div><div class="sub">Gastos</div><div class="b" style="font-size:24px">{{tot.gas|cop}}</div></div></div>
 <div class="sub" style="margin-top:8px">Balance <b style="color:var(--tx)">{{(tot.ing-tot.gas)|cop}}</b> · {{tot.n}} movimientos contados. Revisa abajo qué se cuela: pagos entre tus propias cuentas, el mismo gasto dos veces, o un ingreso que falta.</div></div>
 
-{% if dups %}<div class="card"><div class="hd"><h2>{{ico('alert',19)}}Posibles duplicados</h2></div>
-<p class="sub">Mismo día, cuenta, texto y valor repetidos. Si es el mismo gasto cargado dos veces (por ejemplo, anotado a mano y también en el extracto), bórralo en Movimientos.</p>
-{% for d in dups %}<div class="li"><div class="t"><b>{{d.descripcion}}</b><small>{{d.fecha}} · {{d.banco}} · {{d.n}} veces ({{d.orig}})</small></div><div class="n b">{{d.monto|cop}}</div></div>{% endfor %}</div>{% endif %}
+{% if dups %}<div class="card"><div class="hd"><h2>{{ico('alert',19)}}Repetidos en dos cuentas</h2></div>
+<p class="sub">Mismo día, texto y valor cargados en más de una cuenta (suele pasar al subir el mismo extracto de la tarjeta como Nu y como Nequi). Se cuentan dos veces.</p>
+{% for d in dups %}<div class="li"><div class="t"><b>{{d.descripcion}}</b><small>{{d.fecha}} · {{d.bancos}}</small></div><div class="n b">{{d.monto|cop}}</div>
+<form method="post" action="/movimientos/{{d.copia}}/borrar" onsubmit="return confirm('¿Borrar la copia?')"><button class="ghost del" title="Borrar la copia">{{ico('trash',17)}}</button></form></div>{% endfor %}
+<form method="post" action="/revisar/limpiar" style="margin-top:12px"><input type="hidden" name="mes" value="{{mes}}"><button class="soft" onclick="return confirm('¿Borrar la copia de cada repetido?')">Borrar todas las copias</button></form></div>{% endif %}
 
 <div class="card"><div class="hd"><h2>{{ico('receipt',19)}}Los gastos más grandes</h2></div>
 <p class="sub">Si alguno es mover plata entre tus cuentas, pagar la tarjeta o un retiro, cámbiale la categoría a «Traslado propio» y deja de contar como gasto.</p>
