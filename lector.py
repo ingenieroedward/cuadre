@@ -26,10 +26,10 @@ CATEGORIAS_BASE = {
     "Comida": ["rappi", "restaur", "mcdonald", "kfc", "domicilio", "ifood", "cafe", "café", "panader", "pizza"],
     "Transporte": ["uber", "didi", "cabify", "indriver", "terpel", "primax", "texaco", "peaje", "gasolina"],
     "Salud": ["farmacia", "drogueria", "droguería", " eps ", "clinica", "clínica", "cruz verde"],
-    "Servicios": ["claro", "movistar", "tigo", "enel", "epm", "vanti", "acueducto", "etb", "surtigas", "gases"],
+    "Servicios": ["afinia", "claro", "movistar", "tigo", "enel", "epm", "vanti", "acueducto", "etb", "surtigas", "gases"],
     "Hogar": ["dollarcity", "homecenter", "ikea"],
     "Deudas": [],
-    "Intereses y cobros": ["interes", "interés", "cuota de manejo", "cuota manejo", "comision", "comisión", "cargo por", "gmf"],
+    "Intereses y cobros": ["interes", "interés", "gravamen", "cuota de manejo", "cuota manejo", "comision", "comisión", "cargo por", "gmf"],
     "Ingresos": ["rendimiento", "nómina", "nomina", "salario"],
 }
 # Estas categorías no cuentan como ingreso/gasto en el resumen (mueven plata propia)
@@ -85,7 +85,7 @@ def categoria(desc, reglas):
         return "Traslado propio"
     if re.search(r"\bretiro\b|retiraste|\bcajero\b", d):
         return "Traslado propio"       # sacar efectivo no es gastar: el gasto se anota cuando se paga con ese efectivo
-    salida = d.strip().startswith(("enviaste a", "pago a", "pagaste", "compra"))
+    salida = d.strip().startswith(("enviaste a", "pago a", "pagaste", "compra", "para ", "envio con"))
     for kw, cat in reglas:               # reglas del usuario primero
         if kw.lower() in d:
             if cat == "Ingresos" and salida:
@@ -94,9 +94,9 @@ def categoria(desc, reglas):
     for cat, claves in CATEGORIAS_BASE.items():
         if any(k in d for k in claves):
             return cat
-    if d.strip().startswith("recibiste de"):
+    if d.strip().startswith(("recibiste de", "de ", "recibi por")):
         return "Transferencias recibidas"
-    if d.strip().startswith("enviaste a"):
+    if d.strip().startswith(("enviaste a", "para ", "envio con")):
         return "Transferencias enviadas"
     return "Otros"
 
@@ -143,6 +143,11 @@ def leer_pdf(datos: bytes, clave: str, tipo: str, reglas):
         tipo = "tarjeta"
     elif "resumen de tus movimientos" in t:
         tipo = "cuenta"
+    if es_nequi(todo):
+        movs = _leer_nequi(todo, reglas)
+        for m in movs:
+            m["origen"] = "cuenta"
+        return movs, info_nequi(todo)
     movs = _leer_tarjeta(todo, reglas) if tipo == "tarjeta" else _leer_cuenta(todo, tipo, reglas)
     for m in movs:
         m["origen"] = tipo
@@ -349,6 +354,71 @@ def texto_pdf(datos: bytes, clave: str) -> str:
     """El texto tal como lo entrega la lectura del PDF (para diagnosticar formatos nuevos)."""
     with pdfplumber.open(io.BytesIO(datos), password=clave or None) as pdf:
         return "\n".join((p.extract_text() or "") for p in pdf.pages)
+
+
+# ---------- Nequi: cifras al estilo inglés ($1,500,000.00), valor con signo y saldo en cada línea ----------
+RE_NEQUI = re.compile(r"^(\d{2})/(\d{2})/(20\d{2})\s+(.+?)\s+\$(-?[\d,]+\.\d{2})\s+\$(-?[\d,]+\.\d{2})\s*$")
+
+
+def es_nequi(todo):
+    t = todo.lower()
+    return "nequi s.a" in t and "fecha del movimiento" in t
+
+
+def _us(txt):
+    return float(txt.replace(",", ""))
+
+
+def _titular_nequi(todo):
+    m = re.search(r"Compa[ñn][ií]a de Financiamiento\s*\n\s*([A-ZÁÉÍÓÚÑ ]{5,60})\s*\n", todo)
+    return m[1].strip() if m else ""
+
+
+def _leer_nequi(todo, reglas):
+    import difflib
+    titular = sin_tildes(_titular_nequi(todo).lower()).split()
+    nombre = titular[0] if titular else ""
+    movs = []
+    for linea in todo.splitlines():
+        m = RE_NEQUI.match(linea.strip())
+        if not m:
+            continue
+        iso = _fecha(int(m[3]), int(m[2]), int(m[1]))
+        desc = re.sub(r"\s+", " ", m[4]).strip()
+        if not iso or len(desc) < 3:
+            continue
+        monto = _us(m[5])
+        d = sin_tildes(desc.lower())
+        cat = None
+        otro = re.search(r"(?:\ba|\bde):\s*([a-z]+)\s*$", d)
+        if otro and nombre and difflib.SequenceMatcher(None, otro[1], nombre).ratio() >= 0.8:
+            cat = "Traslado propio"               # «ENVIO CON BRE-B A: Edward» (o su typo «EDWAD») = plata tuya entre tus cuentas
+        elif "gravamen" in d:
+            cat = "Intereses y cobros"
+        elif re.search(r"abono del credito|pago adelantado de cuota|pago de cuota|cuota del credito", d):
+            cat = "Deudas"
+        elif monto > 0 and "interes" in d:
+            cat = "Ingresos"
+        elif d.startswith("pago recibido de "):
+            cat = "Ingresos"
+        if cat is None:
+            cat = categoria(desc, reglas)
+        movs.append({"fecha": iso, "descripcion": limpiar(desc)[:200], "monto": monto, "categoria": cat})
+    return movs
+
+
+def info_nequi(todo):
+    def v(etq):
+        m = re.search(etq + r"\s*\$(-?[\d,]+\.\d{2})", todo, re.I)
+        return _us(m[1]) if m else None
+    entro, salio = v(r"Total abonos"), v(r"Total cargos")
+    if entro is None or salio is None:
+        return None
+    m = re.search(r"per[ií]odo de:\s*(20\d{2})/(\d{2})/(\d{2})\s*a\s*(20\d{2})/(\d{2})/(\d{2})", todo, re.I)
+    cierre = _fecha(int(m[4]), int(m[5]), int(m[6])) if m else None
+    gmf = sum(abs(_us(y)) for y in re.findall(r"(?im)^\d{2}/\d{2}/20\d{2}\s+gravamen[^$\n]*\$(-?[\d,]+\.\d{2})", todo))
+    return {"entro": entro, "salio": salio, "cierre": cierre, "inicio": v(r"Saldo anterior"), "final": v(r"Saldo actual"),
+            "gmf": gmf, "rend_total": None, "cuenta_nu": None, "cajitas": None}
 
 
 def _leer_cuenta(todo, tipo, reglas):
