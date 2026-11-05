@@ -33,6 +33,14 @@ def actuales(c):
         delta = c.execute("""SELECT COALESCE(SUM(monto),0) v, COUNT(*) n, SUM(estado='provisional') p FROM movs
             WHERE user_id=? AND banco=? AND origen!='tarjeta' AND (fecha > ? OR (fecha=? AND id > ?))""",
                           (s["user_id"], s["banco"], s["fecha"], s["fecha"], s["corte_id"])).fetchone()
+        # 4x1000: lo que anotaste a mano o capturaste aún no trae el gravamen que el banco cobra de verdad (el extracto sí lo trae)
+        gmf = 0.0
+        q = c.execute("SELECT exenta,tipo FROM cuentas WHERE user_id=? AND nombre=?", (s["user_id"], s["banco"])).fetchone()
+        if s["banco"] != "Efectivo" and not (q and (q["exenta"] or q["tipo"] == "tarjeta")):
+            sal = c.execute("""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE user_id=? AND banco=? AND origen!='tarjeta' AND monto<0
+                AND COALESCE(fuente,'')!='extracto' AND categoria!='Intereses y cobros' AND (fecha > ? OR (fecha=? AND id > ?))""",
+                            (s["user_id"], s["banco"], s["fecha"], s["fecha"], s["corte_id"])).fetchone()
+            gmf = sal["v"] * 0.004
         caj = c.execute("""SELECT * FROM cajitas WHERE user_id=? AND banco=? ORDER BY fecha DESC LIMIT 1""", (s["user_id"], s["banco"])).fetchone()
         cfg = c.execute("SELECT * FROM rend_cfg WHERE user_id=? AND banco=?", (s["user_id"], s["banco"])).fetchone()
         info_caj, acum = None, 0.0
@@ -54,6 +62,6 @@ def actuales(c):
                         "rend_mes": (est + acum) * ((1 + ea / 100) ** (1 / 12) - 1),
                         "rend_extracto": caj["rend_cajitas"] if caj else None}
         out.append({"cajitas": info_caj, "id": s["id"], "user_id": s["user_id"], "nombre": s["nombre"], "banco": s["banco"], "fecha": s["fecha"],
-                    "base": s["saldo"], "fuente": s["fuente"], "delta": delta["v"], "n": delta["n"], "pend": delta["p"] or 0,
-                    "estimado": s["saldo"] + delta["v"] + acum})
+                    "base": s["saldo"], "fuente": s["fuente"], "delta": delta["v"], "n": delta["n"], "pend": delta["p"] or 0, "gmf": gmf,
+                    "estimado": s["saldo"] + delta["v"] + acum - gmf})
     return out

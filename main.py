@@ -285,10 +285,11 @@ def lista_cuentas(c):
     out = []
     for u_ in c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall():
         out.append({"v": f"{u_['id']}|Efectivo", "label": f"Efectivo · {u_['nombre']}", "user_id": u_["id"], "nombre": "Efectivo",
-                    "efectivo": True, "tarjeta": False})
-        for q in c.execute("SELECT nombre,tipo FROM cuentas WHERE user_id=? AND activa=1 ORDER BY nombre", (u_["id"],)).fetchall():
+                    "efectivo": True, "tarjeta": False, "paga_gmf": False})
+        for q in c.execute("SELECT nombre,tipo,exenta FROM cuentas WHERE user_id=? AND activa=1 ORDER BY nombre", (u_["id"],)).fetchall():
             out.append({"v": f"{u_['id']}|{q['nombre']}", "label": f"{q['nombre']} · {u_['nombre']}", "user_id": u_["id"], "nombre": q["nombre"],
-                        "efectivo": False, "tarjeta": q["tipo"] == "tarjeta"})
+                        "efectivo": False, "tarjeta": q["tipo"] == "tarjeta",
+                        "paga_gmf": q["tipo"] != "tarjeta" and not q["exenta"]})
     return out
 
 

@@ -38,14 +38,14 @@
 <form class="frm" method="post" action="/movimientos/rapido">
 <button type="button" id="rp-mic" class="mic" onclick="vozRapido()">{{ico('mic',20)}}<span id="rp-mic-t">Dilo en voz alta</span></button><div class="sub" id="rp-oyo" style="display:none;margin-top:-4px"></div>
 <div class="tipo t3"><label><input type="radio" name="tipo" value="gasto" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo not in ('ingreso','retiro')}}>Gasto</label><label class="in"><input type="radio" name="tipo" value="ingreso" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo=='ingreso'}}>Ingreso</label><label class="ret"><input type="radio" name="tipo" value="traslado" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo in ('traslado','retiro')}}>Traslado</label></div>
-<input id="rp-monto" class="monto" name="monto" inputmode="decimal" placeholder="$ 0" value="{{pre.monto or ''}}" required autocomplete="off">
+<input id="rp-monto" oninput="gmfRapido()" class="monto" name="monto" inputmode="decimal" placeholder="$ 0" value="{{pre.monto or ''}}" required autocomplete="off">
 <label class="f" id="rp-desc"><span>En qué</span><input name="descripcion" id="rp-d" placeholder="Mercado, taxi, arriendo…" value="{{pre.desc or ''}}" autocomplete="off"></label>
 {% if recientes %}<div id="rp-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:-4px">{% for d in recientes[:6] %}<button type="button" class="pill" style="border:0;cursor:pointer" onclick="document.getElementById('rp-d').value=this.textContent">{{d}}</button>{% endfor %}</div>{% endif %}
-<label class="f"><span id="rp-medio-l">Con qué pagaste</span><select name="cuenta" id="rp-cuenta">{% for x in cuentas_op_t %}<option value="{{x.v}}" data-u="{{x.user_id}}" data-ef="{{1 if x.efectivo else 0}}" {{'selected' if (pre.medio and x.nombre==pre.medio and x.user_id==u.id) or (not pre.medio and x.efectivo and x.user_id==u.id)}}>{{x.label}}</option>{% endfor %}</select></label>
+<label class="f"><span id="rp-medio-l">Con qué pagaste</span><select name="cuenta" id="rp-cuenta" onchange="gmfRapido()">{% for x in cuentas_op_t %}<option value="{{x.v}}" data-u="{{x.user_id}}" data-ef="{{1 if x.efectivo else 0}}" data-gmf="{{1 if x.paga_gmf else 0}}" {{'selected' if (pre.medio and x.nombre==pre.medio and x.user_id==u.id) or (not pre.medio and x.efectivo and x.user_id==u.id)}}>{{x.label}}</option>{% endfor %}</select></label>
 <label class="f" id="rp-dest" style="display:none"><span>Hacia</span><select name="destino" id="rp-destino">{% for x in cuentas_op %}<option value="{{x.v}}" data-u="{{x.user_id}}" data-ef="{{1 if x.efectivo else 0}}">{{x.label}}</option>{% endfor %}</select></label>
 <label class="f" id="rp-cat">Categoría<select name="categoria"><option>Auto</option>{% for x in cats_q %}<option>{{x}}</option>{% endfor %}</select></label>
 <div class="frm row"><label class="f">Fecha<input type="date" name="fecha" value="{{hoy_iso}}"></label></div>
-<p class="sub" id="rp-nota">Si eliges un banco, queda como pendiente y el extracto lo confirma solo. Efectivo queda confirmado.</p>
+<p class="sub" id="rp-gmf" style="display:none;color:var(--warn)"></p><p class="sub" id="rp-nota">Si eliges un banco, queda como pendiente y el extracto lo confirma solo. Efectivo queda confirmado.</p>
 <button class="lg btn" style="justify-content:center">Guardar</button></form></dialog>
 <script>function vozRapido(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition,b=document.getElementById("rp-mic"),t=document.getElementById("rp-mic-t"),o=document.getElementById("rp-oyo");
 function nota(x){o.style.display="";o.textContent=x}
@@ -63,6 +63,7 @@ nota("Escuché: «"+txt+"». Revisa y toca Guardar.")}).catch(function(){nota("N
 r.onerror=function(e){nota(e.error==="not-allowed"?"Permite el micrófono para dictar.":"No te escuché, intenta de nuevo.")};
 r.onend=function(){b.classList.remove("on");t.textContent="Dilo en voz alta"};
 try{r.start()}catch(_){}}
+function gmfRapido(){var s=document.getElementById('rp-cuenta'),o=s.selectedOptions[0],v=parseFloat((document.getElementById('rp-monto').value||'').replace(/\./g,'').replace(',','.'))||0,n=document.getElementById('rp-gmf');if(!o||o.dataset.gmf!=='1'){n.style.display='none';return}n.style.display='';n.textContent='Esta cuenta paga 4x1000: '+(v?'sobre $'+v.toLocaleString('es-CO')+' se descuentan ≈ $'+(v*0.004).toLocaleString('es-CO',{maximumFractionDigits:0})+' más.':'se descuenta 0,4% de lo que sale.')}
 function tipoRapido(t){var r=t==="traslado";document.getElementById("rp-medio-l").textContent=r?"Desde":"Con qué pagaste";
 document.getElementById("rp-desc").style.display=r?"none":"";var ch=document.getElementById("rp-chips");if(ch)ch.style.display=r?"none":"";
 document.getElementById("rp-dest").style.display=r?"":"none";document.getElementById("rp-cat").style.display=r?"none":"";
