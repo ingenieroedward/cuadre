@@ -485,6 +485,34 @@ def filtros(mes, persona, cat, q):
     return " AND ".join(w), p
 
 
+@app.get("/revisar")
+def revisar_mes(request: Request, mes: str = ""):
+    """¿Por qué el mes sale en negativo? Desglose por categoría y cuenta, los movimientos más grandes y posibles duplicados."""
+    u = user(request)
+    mes = mes or date.today().strftime("%Y-%m")
+    c = db()
+    ft = "substr(m.fecha,1,7)=?"
+    tot = c.execute(f"""SELECT COALESCE(SUM(CASE WHEN monto>0 THEN monto END),0) ing, COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas,
+        COUNT(*) n FROM movs m WHERE {ft} AND m.{EXC}""", (mes,)).fetchone()
+    fuera = c.execute(f"""SELECT categoria, COUNT(*) n, COALESCE(SUM(CASE WHEN monto>0 THEN monto END),0) ing,
+        COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas FROM movs m WHERE {ft} AND NOT ({EXC}) GROUP BY categoria""", (mes,)).fetchall()
+    por_cat = c.execute(f"""SELECT categoria, COUNT(*) n, COALESCE(SUM(CASE WHEN monto>0 THEN monto END),0) ing,
+        COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas FROM movs m WHERE {ft} AND m.{EXC} GROUP BY categoria
+        ORDER BY gas+ing DESC""", (mes,)).fetchall()
+    por_cuenta = c.execute(f"""SELECT m.banco, u.nombre, COUNT(*) n, COALESCE(SUM(CASE WHEN monto>0 THEN monto END),0) ing,
+        COALESCE(SUM(CASE WHEN monto<0 THEN -monto END),0) gas FROM movs m JOIN users u ON u.id=m.user_id WHERE {ft} AND m.{EXC}
+        GROUP BY m.banco, u.id ORDER BY gas DESC""", (mes,)).fetchall()
+    gastos = c.execute(f"""SELECT m.*, u.nombre FROM movs m JOIN users u ON u.id=m.user_id WHERE {ft} AND m.{EXC} AND monto<0
+        ORDER BY monto LIMIT 12""", (mes,)).fetchall()
+    ingresos = c.execute(f"""SELECT m.*, u.nombre FROM movs m JOIN users u ON u.id=m.user_id WHERE {ft} AND m.{EXC} AND monto>0
+        ORDER BY monto DESC LIMIT 8""", (mes,)).fetchall()
+    dups = c.execute(f"""SELECT m.fecha, m.banco, m.descripcion, m.monto, COUNT(*) n, GROUP_CONCAT(m.origen) orig FROM movs m
+        WHERE {ft} AND m.{EXC} GROUP BY m.fecha, m.banco, m.descripcion, m.monto HAVING COUNT(*)>1 ORDER BY ABS(m.monto)*COUNT(*) DESC LIMIT 10""", (mes,)).fetchall()
+    c.close()
+    return render(request, "revisar.html", u=u, mes=mes, tot=tot, fuera=fuera, por_cat=por_cat, por_cuenta=por_cuenta,
+                  gastos=gastos, ingresos=ingresos, dups=dups, cats=CATEGORIAS)
+
+
 @app.get("/movimientos")
 def movimientos(request: Request, mes: str = "", persona: int = 0, cat: str = "", q: str = ""):
     u = user(request)

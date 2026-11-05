@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block t %}Revisar el mes · Cuadre{% endblock %}{% block c %}
+<div class="ph"><div><h1>Revisar el mes</h1><p>De dónde sale el balance de {{mes}}</p></div><a class="btn line" href="/?mes={{mes}}">Volver al resumen</a></div>
+<div class="stack">
+<div class="card"><div class="g2" style="gap:12px">
+<div><div class="sub">Ingresos</div><div class="b" style="font-size:24px">{{tot.ing|cop}}</div></div>
+<div><div class="sub">Gastos</div><div class="b" style="font-size:24px">{{tot.gas|cop}}</div></div></div>
+<div class="sub" style="margin-top:8px">Balance <b style="color:var(--tx)">{{(tot.ing-tot.gas)|cop}}</b> · {{tot.n}} movimientos contados. Revisa abajo qué se cuela: pagos entre tus propias cuentas, el mismo gasto dos veces, o un ingreso que falta.</div></div>
+
+{% if dups %}<div class="card"><div class="hd"><h2>{{ico('alert',19)}}Posibles duplicados</h2></div>
+<p class="sub">Mismo día, cuenta, texto y valor repetidos. Si es el mismo gasto cargado dos veces (por ejemplo, anotado a mano y también en el extracto), bórralo en Movimientos.</p>
+{% for d in dups %}<div class="li"><div class="t"><b>{{d.descripcion}}</b><small>{{d.fecha}} · {{d.banco}} · {{d.n}} veces ({{d.orig}})</small></div><div class="n b">{{d.monto|cop}}</div></div>{% endfor %}</div>{% endif %}
+
+<div class="card"><div class="hd"><h2>{{ico('receipt',19)}}Los gastos más grandes</h2></div>
+<p class="sub">Si alguno es mover plata entre tus cuentas, pagar la tarjeta o un retiro, cámbiale la categoría a «Traslado propio» y deja de contar como gasto.</p>
+{% for r in gastos %}<div class="li"><div class="t"><b title="{{r.descripcion}}">{{r.descripcion}}</b><small>{{r.fecha}} · {{r.banco}} · {{r.nombre}}</small>
+<form method="post" action="/movimientos/{{r.id}}/categoria" style="margin-top:6px"><input type="hidden" name="aplicar_similares" value=""><select class="catsel" name="categoria" onchange="this.form.aplicar_similares.value=confirm('¿Aplicar esta categoría a los movimientos parecidos?')?'1':'';this.form.submit()">{% for c in cats %}<option {{'selected' if c==r.categoria}}>{{c}}</option>{% endfor %}</select></form></div>
+<div class="n b bad">{{r.monto|cop}}</div></div>{% else %}<div class="empty"><div>Sin gastos este mes</div></div>{% endfor %}</div>
+
+<div class="card"><div class="hd"><h2>{{ico('up',19)}}Los ingresos</h2></div>
+<p class="sub">¿Está tu sueldo completo? Si falta un pago, sube ese extracto o anótalo como ingreso.</p>
+{% for r in ingresos %}<div class="li"><div class="t"><b title="{{r.descripcion}}">{{r.descripcion}}</b><small>{{r.fecha}} · {{r.banco}} · {{r.nombre}}</small>
+<form method="post" action="/movimientos/{{r.id}}/categoria" style="margin-top:6px"><input type="hidden" name="aplicar_similares" value=""><select class="catsel" name="categoria" onchange="this.form.aplicar_similares.value=confirm('¿Aplicar esta categoría a los movimientos parecidos?')?'1':'';this.form.submit()">{% for c in cats %}<option {{'selected' if c==r.categoria}}>{{c}}</option>{% endfor %}</select></form></div>
+<div class="n b">{{r.monto|cop}}</div></div>{% else %}<div class="empty"><div>Sin ingresos este mes</div></div>{% endfor %}</div>
+
+<div class="g2"><div class="card"><div class="hd"><h2>Por cuenta</h2></div>
+{% for x in por_cuenta %}<div class="li"><div class="t"><b>{{x.banco}} · {{x.nombre}}</b><small>{{x.n}} mov. · entra {{x.ing|cop}}</small></div><div class="n b">−{{x.gas|cop}}</div></div>{% endfor %}</div>
+<div class="card"><div class="hd"><h2>Por categoría</h2></div>
+{% for x in por_cat %}<div class="li"><div class="t"><b>{{x.categoria}}</b><small>{{x.n}} mov.</small></div><div class="n b">{% if x.gas %}−{{x.gas|cop}}{% endif %}{% if x.ing %} <span class="ok">+{{x.ing|cop}}</span>{% endif %}</div></div>{% endfor %}</div></div>
+
+{% if fuera %}<div class="card"><div class="hd"><h2>Lo que NO cuenta</h2></div>
+<p class="sub">Estos movimientos no entran al balance porque mueven tu propia plata.</p>
+{% for x in fuera %}<div class="li"><div class="t"><b>{{x.categoria}}</b><small>{{x.n}} movimiento(s)</small></div><div class="n">{{(x.gas or x.ing)|cop}}</div></div>{% endfor %}</div>{% endif %}
+</div>{% endblock %}
