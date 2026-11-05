@@ -185,3 +185,6 @@ th.n,td.n{text-align:right}th.c,td.c{text-align:center;width:1%}
 @media(max-width:560px){.sec-t{margin:16px 2px 12px}}
 
 .li .t small b,.li .t small span{display:inline;white-space:normal;overflow:visible;text-overflow:clip}
+.md-box{font-size:14.5px;line-height:1.55}.md-box p{margin:0 0 8px}.md-box ul.md,.md-box ol.md{margin:0 0 8px;padding-left:20px}.md-box li{margin:4px 0}
+.chat-q{background:var(--soft);color:var(--ac);font-weight:600;padding:9px 13px;border-radius:12px 12px 12px 4px;display:inline-block;max-width:92%}
+button:disabled{opacity:.5;cursor:not-allowed}

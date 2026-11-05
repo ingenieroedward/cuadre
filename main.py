@@ -28,6 +28,7 @@ import correo
 import cuentas
 import deudas
 import agenda
+import asesor
 import icons
 import lector
 import metas
@@ -88,6 +89,34 @@ tpl.env.filters["color"] = icons.color
 tpl.env.filters["en_meses"] = lambda n: f"{MES_ES[deudas.add_months(date.today(), int(n)).month - 1][:3]} {deudas.add_months(date.today(), int(n)).year}"
 tpl.env.filters["todate"] = lambda s: date.fromisoformat(s)
 tpl.env.filters["dia_es"] = lambda d: f"{DIA_ES[d.weekday()][:3]} {d.day} {MES_ES[d.month - 1][:3]}"
+def _md(t):
+    """Markdown mínimo y seguro: **negrita**, listas con '-' y numeradas, párrafos."""
+    import re as _re
+    from markupsafe import Markup, escape
+    out, lista = [], None
+    def cierra():
+        nonlocal lista
+        if lista:
+            out.append(f"</{lista}>")
+            lista = None
+    for linea in (t or "").splitlines():
+        s = _re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", str(escape(linea.strip())))
+        mm = _re.match(r"^(?:[-•*]\s+)(.*)$", s)
+        mn = _re.match(r"^\d+[.)]\s+(.*)$", s)
+        if mm or mn:
+            tag = "ul" if mm else "ol"
+            if lista != tag:
+                cierra(); out.append(f"<{tag} class='md'>"); lista = tag
+            out.append(f"<li>{(mm or mn).group(1)}</li>")
+        elif s:
+            cierra(); out.append(f"<p>{s}</p>")
+        else:
+            cierra()
+    cierra()
+    return Markup("".join(out))
+
+
+tpl.env.filters["md"] = _md
 tpl.env.filters["inicial"] = lambda t: (t or "?").strip()[:1].upper()
 MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 DIA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -160,6 +189,7 @@ def init():
     CREATE TABLE IF NOT EXISTS metas(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, objetivo REAL, periodo TEXT DEFAULT 'total',
         fecha_limite TEXT, bono_ea REAL DEFAULT 0, banco TEXT, avisar INTEGER DEFAULT 1, activa INTEGER DEFAULT 1);
     CREATE TABLE IF NOT EXISTS meta_aportes(id INTEGER PRIMARY KEY, meta_id INTEGER, fecha TEXT, monto REAL, nota TEXT);
+    CREATE TABLE IF NOT EXISTS asesor_hist(id INTEGER PRIMARY KEY, user_id INTEGER, modo TEXT, pregunta TEXT, respuesta TEXT, creado TEXT);
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -1331,3 +1361,79 @@ def pagina_agenda(request: Request, dias: int = 60):
     c.close()
     return render(request, "agenda.html", u=u, grupos=agenda.agrupar(ev), semana=agenda.por_pagar(ev, 7), mes=agenda.por_pagar(ev, 30),
                   total=len(ev), dias=max(7, min(dias, 180)))
+
+
+# ---------- Asesor con IA ----------
+def _guardar_hist(c, user_id, modo, pregunta, respuesta):
+    c.execute("INSERT INTO asesor_hist(user_id,modo,pregunta,respuesta,creado) VALUES(?,?,?,?,?)",
+              (user_id, modo, pregunta, respuesta, avisos.ahora().isoformat()))
+    c.commit()
+
+
+@app.get("/asesor")
+def pagina_asesor(request: Request):
+    u = user(request)
+    c = db()
+    ultimos = {md: c.execute("SELECT * FROM asesor_hist WHERE user_id=? AND modo=? ORDER BY id DESC LIMIT 1", (u["id"], md)).fetchone()
+               for md in asesor.MODOS}
+    chat = list(reversed(c.execute("SELECT * FROM asesor_hist WHERE user_id=? AND modo='chat' ORDER BY id DESC LIMIT 8", (u["id"],)).fetchall()))
+    usos = asesor.usos_hoy(c, u["id"])
+    c.close()
+    return render(request, "asesor.html", u=u, clave=asesor.hay_clave(), ultimos=ultimos, chat=chat, usos=usos, max_dia=asesor.MAX_DIA,
+                  modelo=asesor.MODELO)
+
+
+def _llamar_asesor(request, u, modo, mensajes, effort, max_tokens, pregunta):
+    c = db()
+    try:
+        if not asesor.hay_clave():
+            return volver(request, "/asesor", err="Falta la clave de Anthropic (ANTHROPIC_API_KEY) en la configuración del servidor")
+        if asesor.usos_hoy(c, u["id"]) >= asesor.MAX_DIA:
+            return volver(request, "/asesor", err=f"Llegaste al límite de {asesor.MAX_DIA} consultas de hoy. Mañana sigues")
+        try:
+            texto, aviso = asesor.consultar(mensajes, effort, max_tokens)
+        except Exception as e:
+            print("asesor:", type(e).__name__, str(e)[:200], flush=True)
+            return volver(request, "/asesor", err=asesor.mensaje_de_error(e))
+        if not texto:
+            return volver(request, "/asesor", err=aviso or "El asistente no devolvió texto. Intenta de nuevo")
+        _guardar_hist(c, u["id"], modo, pregunta, texto)
+        return volver(request, "/asesor", msg=aviso or "Listo")
+    finally:
+        c.close()
+
+
+@app.post("/asesor/analizar")
+def asesor_analizar(request: Request, modo: str = Form("analisis")):
+    u = user(request)
+    if modo not in asesor.MODOS:
+        modo = "analisis"
+    instruccion, effort, max_tokens = asesor.MODOS[modo]
+    c = db(); ctx = asesor.contexto(c); c.close()
+    return _llamar_asesor(request, u, modo, [{"role": "user", "content": f"{instruccion}\n\nContexto de nuestras finanzas:\n{ctx}"}],
+                          effort, max_tokens, instruccion)
+
+
+@app.post("/asesor/preguntar")
+def asesor_preguntar(request: Request, pregunta: str = Form(...)):
+    u = user(request)
+    pregunta = pregunta.strip()[:600]
+    if not pregunta:
+        return volver(request, "/asesor", err="Escribe tu pregunta")
+    c = db()
+    ctx = asesor.contexto(c)
+    previos = list(reversed(c.execute("SELECT pregunta,respuesta FROM asesor_hist WHERE user_id=? AND modo='chat' ORDER BY id DESC LIMIT 3",
+                                      (u["id"],)).fetchall()))
+    c.close()
+    msgs = []
+    for p in previos:
+        msgs += [{"role": "user", "content": p["pregunta"]}, {"role": "assistant", "content": p["respuesta"]}]
+    msgs.append({"role": "user", "content": f"Contexto de nuestras finanzas:\n{ctx}\n\nMi pregunta: {pregunta}"})
+    return _llamar_asesor(request, u, "chat", msgs, "low", 3000, pregunta)
+
+
+@app.post("/asesor/borrar")
+def asesor_borrar(request: Request):
+    u = user(request)
+    c = db(); c.execute("DELETE FROM asesor_hist WHERE user_id=? AND modo='chat'", (u["id"],)); c.commit(); c.close()
+    return RedirectResponse("/asesor", 303)

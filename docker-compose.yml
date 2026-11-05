@@ -13,6 +13,9 @@ services:
       IMAP_PASSWORD: ${IMAP_PASSWORD:-}
       IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
       IMAP_MAX_DIAS: ${IMAP_MAX_DIAS:-10}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-haiku-5-5}
+      AI_MAX_DIA: ${AI_MAX_DIA:-30}
     volumes:
       - cuadre_data:/data
     expose:

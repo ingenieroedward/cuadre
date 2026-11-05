@@ -7,3 +7,4 @@ pdfplumber>=0.11
 pywebpush>=2.0
 tzdata
 webauthn>=2.5
+anthropic

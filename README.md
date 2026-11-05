@@ -20,6 +20,16 @@ mes/persona/categoría, ingresos y gastos manuales, presupuestos, recordatorios 
 - **Conciliación:** al subir el extracto, lo capturado se empareja por banco, valor y fecha (±5 días) y no se duplica.
   Con Nu además se comprueba que lo leído cuadre con "Lo que entró / Lo que salió" del resumen.
 
+## Asesor con IA (Claude Haiku)
+Define `ANTHROPIC_API_KEY` en Dokploy (y vuelve a desplegar). Opcionales: `AI_MODEL` (por defecto `claude-haiku-5-5`) y `AI_MAX_DIA`
+(consultas por persona al día, por defecto 30). Solo se envía a Anthropic un resumen de cifras: sin nombres, cédula, números de
+cuenta ni descripciones de movimientos. La clave nunca se muestra en la app.
+
+## Metas, disponible diario y agenda
+- **Metas**: mensuales (como las de las cajitas de Nu, con bono de puntos E.A.) o por objetivo, con aportes y avisos.
+- **¿Cuánto puedo gastar?** (Resumen): saldo de hoy menos cuotas, tarjeta y metas que vencen antes de fin de mes (o del día que elijas), dividido por los días que faltan.
+- **Agenda**: cuotas, tarjeta, cobros, recordatorios, metas y uso de la tarjeta en una sola línea de tiempo.
+
 ## Claves
 Cada persona cambia su clave en **Yo → Mi cuenta**. El administrador restablece las de otros en **Familia**.
 
