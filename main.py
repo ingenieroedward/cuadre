@@ -574,7 +574,8 @@ def cambiar_cat(request: Request, mid: int, categoria: str = Form(...), aplicar_
             kw = lector.clave_regla(d["descripcion"])
             if kw:
                 c.execute("INSERT OR REPLACE INTO reglas(kw,categoria) VALUES(?,?)", (kw, categoria))
-                c.execute("UPDATE movs SET categoria=? WHERE lower(descripcion) LIKE ?", (categoria, f"%{kw}%"))
+                c.execute(f"UPDATE movs SET categoria=? WHERE lower(descripcion) LIKE ?{' AND monto>0' if categoria == 'Ingresos' else ''}",
+                          (categoria, f"%{kw}%"))
     c.commit(); c.close()
     return RedirectResponse(request.headers.get("referer", "/movimientos"), 303)
 

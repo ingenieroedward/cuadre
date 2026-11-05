@@ -85,8 +85,11 @@ def categoria(desc, reglas):
         return "Traslado propio"
     if re.search(r"\bretiro\b|retiraste|\bcajero\b", d):
         return "Traslado propio"       # sacar efectivo no es gastar: el gasto se anota cuando se paga con ese efectivo
+    salida = d.strip().startswith(("enviaste a", "pago a", "pagaste", "compra"))
     for kw, cat in reglas:               # reglas del usuario primero
         if kw.lower() in d:
+            if cat == "Ingresos" and salida:
+                continue                 # «Ingresos» es solo para lo que entra, no para lo que le envías a esa persona
             return cat
     for cat, claves in CATEGORIAS_BASE.items():
         if any(k in d for k in claves):
