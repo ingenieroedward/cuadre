@@ -230,6 +230,12 @@ def voz(texto, hoy):
     t = _sin(texto)
     pal = t.replace("$", " ").split()
     tipo = "gasto"
+    if re.search(r"\b(pase|pasar|transferi|traslade|movi|mande)\b", t):
+        hallados = sorted((f" {t} ".find(k), n) for k, n in ((" nequi", "Nequi"), (" daviplata", "Daviplata"), (" efectivo", "Efectivo"), (" nu ", "Nu"))
+                          if f" {t} ".find(k) >= 0)
+        if len(hallados) >= 2:
+            return {"tipo": "traslado", "monto": monto, "descripcion": "", "cuenta": hallados[0][1], "destino": hallados[1][1],
+                    "fecha": hoy.isoformat()}
     if re.search(r"\b(retire|retiro|saque|saqu[eé] del cajero)\b", t):
         tipo = "retiro"
     elif re.search(r"\b(recibi|me pagaron|me llego|me consignaron|me transfirieron|cobre|ingreso|gane|me depositaron|me enviaron)\b", t):

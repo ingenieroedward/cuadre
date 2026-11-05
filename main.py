@@ -1036,7 +1036,7 @@ def interpretar_voz(request: Request, texto: str = Form(...)):
 @app.post("/movimientos/rapido")
 def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gasto"), monto: str = Form(...),
                    descripcion: str = Form(""), categoria: str = Form("Auto"), medio: str = Form("Efectivo"),
-                   fecha: str = Form(""), persona: int = Form(0), cuenta: str = Form("")):
+                   fecha: str = Form(""), persona: int = Form(0), cuenta: str = Form(""), destino: str = Form("")):
     u = user(request)
     if cuenta:
         persona, medio = parse_cuenta(cuenta, u["id"])
@@ -1050,6 +1050,25 @@ def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gast
     cat = lector.categoria(desc, reglas) if categoria == "Auto" else categoria
     efectivo = medio == "Efectivo"
     cuentas.asegurar(c, persona or u["id"], medio)
+    if tipo == "traslado":
+        p2, b2 = parse_cuenta(destino, persona or u["id"]) if destino else (persona or u["id"], "Efectivo")
+        if (p2, b2) == (persona or u["id"], medio):
+            c.close()
+            return volver(request, "/", err="Elige dos cuentas distintas para el traslado")
+        cuentas.asegurar(c, p2, b2)
+        nombres = {r["id"]: r["nombre"] for r in c.execute("SELECT id,nombre FROM users")}
+        dia = fecha or date.today().isoformat()
+        otro = p2 != (persona or u["id"])
+        for pers, banco_, monto_, texto in ((persona or u["id"], medio, -valor, f"Traslado a {b2}" + (f" ({nombres.get(p2, '')})" if otro else "")),
+                                           (p2, b2, valor, f"Traslado desde {medio}" + (f" ({nombres.get(persona or u['id'], '')})" if otro else ""))):
+            hh = hashlib.sha256(f"traslado{secrets.token_hex(8)}".encode()).hexdigest()
+            c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""", (pers, banco_, dia, texto, monto_, "Traslado propio", "manual", hh,
+                                                 "confirmado" if banco_ == "Efectivo" else "provisional", "manual"))
+        c.commit(); c.close()
+        from urllib.parse import urlparse
+        destino_p = urlparse(request.headers.get("referer", "")).path or "/"
+        return volver(request, "/" if destino_p in ("/rapido", "/login") else destino_p, msg=f"Traslado anotado: {medio} → {b2}")
     if tipo == "retiro":
         if efectivo:
             c.close()
