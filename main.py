@@ -987,6 +987,13 @@ def rapido(request: Request, monto: str = "", desc: str = "", tipo: str = "gasto
     return render(request, "rapido.html", u=u, pre={"monto": monto, "desc": desc, "tipo": tipo, "medio": medio}, abrir=True)
 
 
+@app.post("/voz")
+def interpretar_voz(request: Request, texto: str = Form(...)):
+    user(request)
+    r = captura.voz(texto[:300], date.today())
+    return JSONResponse(r or {"error": "No entendí el valor. Di, por ejemplo: «gasté cuarenta mil en taxi»."})
+
+
 @app.post("/movimientos/rapido")
 def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gasto"), monto: str = Form(...),
                    descripcion: str = Form(""), categoria: str = Form("Auto"), medio: str = Form("Efectivo"),
