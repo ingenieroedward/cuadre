@@ -214,6 +214,15 @@ def init():
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
     cuentas.sembrar(c)
+    # El plan de acción se llena al guardar un consejo; los consejos anteriores a esa función se importan una sola vez.
+    if not c.execute("SELECT 1 FROM config WHERE clave='mig_plan_ia'").fetchone():
+        if not c.execute("SELECT 1 FROM asesor_acciones").fetchone():
+            for h in c.execute("""SELECT * FROM asesor_hist WHERE modo IN ('analisis','tarjeta') AND id IN
+                    (SELECT MAX(id) FROM asesor_hist WHERE modo IN ('analisis','tarjeta') GROUP BY modo)""").fetchall():
+                for t in asesor.extraer_acciones(h["respuesta"]):
+                    c.execute("INSERT OR IGNORE INTO asesor_acciones(user_id,texto,estado,hist_id,creado) VALUES(?,?,?,?,?)",
+                              (h["user_id"], t, "pendiente", h["id"], h["creado"]))
+        c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('mig_plan_ia','1')")
     # Corrección única: antes se suponía que Nu estaba exenta; Nu sí cobra 4x1000. La persona puede cambiarlo en Cuentas.
     # Corrección única (la persona confirmó): Nu está exenta de 4x1000 y Nequi sí lo cobra.
     if not c.execute("SELECT 1 FROM config WHERE clave='mig_gmf_v2'").fetchone():
