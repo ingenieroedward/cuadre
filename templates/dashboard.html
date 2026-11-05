@@ -26,7 +26,7 @@
 {% endif %}
 {% if prox7 %}<div class="card"><div class="hd"><h2>{{ico('calendar',19)}}Próximos días</h2><a href="/agenda" class="sub">Ver agenda</a></div>
 {% for e in prox7 %}<a class="li" href="{{e.url}}" style="color:inherit;padding:8px 0"><span class="chip s" style="--c:{{e.color}}">{{ico(e.icono,16)}}</span><div class="t"><b>{{e.titulo}}</b><small>{{e.fecha|dia_es}} · {{'hoy' if e.dias<=0 else 'mañana' if e.dias==1 else 'en %d días'|format(e.dias)}}</small></div><div class="n b">{% if e.monto %}{{e.monto|cop}}{% endif %}</div></a>{% endfor %}</div>{% endif %}
-<div class="g2 w"><div class="card hero"><div class="lbl">Balance de {{mes_txt|lower}}{% if tot.ing-tot.gas < 0 %} · <a href="/revisar?mes={{mes}}" style="color:#fff;text-decoration:underline">¿Por qué?</a>{% endif %}</div><div class="big">{{(tot.ing-tot.gas)|cop}}</div>
+<div class="g2 w"><div class="card hero"><div class="lbl">Balance de {{mes_txt|lower}}{% if tot.ing-tot.gas < 0 %}<a class="hero-why" href="/revisar?mes={{mes}}">¿Por qué?</a>{% endif %}</div><div class="big">{{(tot.ing-tot.gas)|cop}}</div>
 <div class="two"><div><small>{{ico('down',15)}} Ingresos</small><b>{{tot.ing|cop}}</b></div><div><small>{{ico('up',15)}} Gastos</small><b>{{tot.gas|cop}}</b></div></div>{% if n_prov %}<div style="margin-top:14px;opacity:.85;font-size:13px;display:flex;gap:6px;align-items:center">{{ico('clock',15)}}Incluye {{n_prov}} movimiento(s) pendiente(s) de extracto</div>{% endif %}</div>
 <div class="card"><div class="hd"><h2>{{ico('users',19)}}Por persona</h2></div>
 {% for x in pers %}<div class="li"><span class="av">{{x.nombre|inicial}}</span><div class="t"><b>{{x.nombre}}</b><small class="ok">+{{x.ing|cop}}</small> <small class="bad">&nbsp;−{{x.gas|cop}}</small></div></div>
