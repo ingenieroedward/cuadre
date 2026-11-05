@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block t %}Agenda · Cuadre{% endblock %}{% block c %}
-<div class="ph"><div><h1>Agenda</h1><p>Lo que viene en los próximos {{dias}} días</p></div><button onclick="dev.showModal()">{{ico('plus',17)}}Agregar</button>
-<div class="seg"><a href="/agenda?dias=30" {{'style=color:var(--ac)' if dias==30}}>30 d</a><a href="/agenda?dias=60" {{'style=color:var(--ac)' if dias==60}}>60 d</a><a href="/agenda?dias=90" {{'style=color:var(--ac)' if dias==90}}>90 d</a></div></div>
+<div class="ph"><div><h1>Agenda</h1><p>Lo que viene en los próximos {{dias}} días</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button onclick="dev.showModal()">{{ico('plus',17)}}Agregar</button>
+<div class="seg"><a href="/agenda?dias=30" {{'style=color:var(--ac)' if dias==30}}>30 d</a><a href="/agenda?dias=60" {{'style=color:var(--ac)' if dias==60}}>60 d</a><a href="/agenda?dias=90" {{'style=color:var(--ac)' if dias==90}}>90 d</a></div></div></div>
 <p class="sub" style="margin:-4px 0 12px">Se arma sola con tus cuotas, tarjeta, ingresos y metas. Con «Agregar» pones lo tuyo: arriendo, un cumpleaños, un pago puntual…</p>
 <div class="stack">
 <div class="g2"><div class="card kpi"><div class="sub">A pagar esta semana</div><div class="b" style="font-size:26px;letter-spacing:-1px">{{semana|cop}}</div></div>
