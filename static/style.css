@@ -255,3 +255,6 @@ button.ocupado{opacity:.85;cursor:progress}button:disabled{cursor:not-allowed}
 .hero{background-size:140% 140%;animation:brillo 9s ease-in-out infinite}
 @keyframes brillo{50%{background-position:100% 60%}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}#pl{display:none}}
+
+.ing-act{display:flex;gap:6px;align-items:center;flex:none}
+@media(max-width:560px){.ing-row{flex-wrap:wrap;row-gap:8px}.ing-row .t{flex:1 1 calc(100% - 56px)}.ing-row .n{margin-left:46px;flex:1;font-size:17px;text-align:left}.ing-row .ing-act{margin-left:auto}}

@@ -2,12 +2,12 @@
 <div class="ph"><div><h1>Ingresos fijos</h1><p>Tu sueldo y lo que llega cada mes, para proyectar bien tu plata</p></div><button onclick="ding.showModal()">{{ico('plus',17)}}Agregar</button></div>
 <div class="stack">
 <div class="card alert p"><div class="ic">{{ico('info',22)}}</div><div class="t"><b>Para qué sirve</b><div class="sub">Con tus fechas de pago, Cuadre proyecta tu saldo día a día y calcula cuánto puedes gastar sin asustarte porque hoy el saldo esté bajo. Los trabajos adicionales no se proyectan: regístralos como ingreso con el botón <b>+</b> cuando lleguen.</div></div></div>
-{% if lista %}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Total que esperas al mes</b><b style="font-size:22px;letter-spacing:-.5px" class="ok">{{total|cop}}</b></div></div>{% endif %}
-<div class="card flush">{% for x in lista %}{% set r=x.r %}<div class="li"><span class="chip" style="--c:#0d9b6a">{{ico('up',18)}}</span>
+{% if lista %}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:6px 14px;flex-wrap:wrap"><b>Total que esperas al mes</b><b style="font-size:22px;letter-spacing:-.5px" class="ok">{{total|cop}}</b></div></div>{% endif %}
+<div class="card flush">{% for x in lista %}{% set r=x.r %}<div class="li ing-row"><span class="chip" style="--c:#0d9b6a">{{ico('up',18)}}</span>
 <div class="t"><b>{{r.nombre}}</b><small>Día {{r.dia}} de cada mes · {{r.responsable}}{% if r.banco %} · llega a {{r.banco}}{% endif %} · próximo {{x.prox.strftime('%d/%m')}} ({{'hoy' if x.dias==0 else 'en %d días'|format(x.dias)}})</small></div>
 <div class="n b ok">+{{r.monto|cop}}</div>
-<form method="post" action="/ingresos/{{r.id}}/llego"><button class="soft" title="Registra que ya te llegó">Ya llegó</button></form>
-<form method="post" action="/ingresos/{{r.id}}/borrar" onsubmit="return confirm('¿Quitar este ingreso?')"><button class="ghost del">{{ico('trash',17)}}</button></form></div>
+<div class="ing-act"><form method="post" action="/ingresos/{{r.id}}/llego"><button class="soft" title="Registra que ya te llegó">Ya llegó</button></form>
+<form method="post" action="/ingresos/{{r.id}}/borrar" onsubmit="return confirm('¿Quitar este ingreso?')"><button class="ghost del">{{ico('trash',17)}}</button></form></div></div>
 {% else %}<div class="empty">{{ico('up',32)}}<div style="margin-bottom:10px">Aún no has agregado tus ingresos fijos</div><button onclick="ding.showModal()">Agregar el primero</button></div>{% endfor %}</div></div>
 <dialog id="ding"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px">Nuevo ingreso fijo</h2><button class="ghost" type="button" onclick="ding.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
 <form class="frm" method="post" action="/ingresos"><label class="f">Nombre<input name="nombre" placeholder="Pago del 15, Pago del 30…" required></label>
