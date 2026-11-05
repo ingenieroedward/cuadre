@@ -58,6 +58,12 @@ def eventos(c, hoy=None, dias=60):
             continue
         bono = f" · +{e['bono']:.2f} pts E.A.".replace(".", ",") if e["bono"] else ""
         add(e["fin"], f"Meta: {m_['nombre']}", f"Faltan {e['falta']:,.0f}{bono}".replace(",", "."), e["falta"], "meta", "/metas", "target", "#0c8599")
+    for r in c.execute("SELECT * FROM ingresos_fijos WHERE activo=1").fetchall():
+        for k in range(0, 4):
+            y, m = _mes_mas(hoy, k)
+            f = date(y, m, min(r["dia"], calendar.monthrange(y, m)[1]))
+            if f >= hoy:
+                add(f, r["nombre"], "Ingreso esperado", r["monto"], "ingreso", "/ingresos", "up", "#0d9b6a")
     dia_ext = c.execute("SELECT valor FROM config WHERE clave='dia_extracto'").fetchone()
     dia = int(dia_ext["valor"]) if dia_ext else 4
     for k in range(0, 3):

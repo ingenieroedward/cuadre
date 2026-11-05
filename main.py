@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import csv
 import hashlib
 import io
@@ -200,6 +201,7 @@ def init():
         firma TEXT, tok_in INTEGER DEFAULT 0, tok_out INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS asesor_acciones(id INTEGER PRIMARY KEY, user_id INTEGER, texto TEXT UNIQUE, estado TEXT DEFAULT 'pendiente',
         hist_id INTEGER, creado TEXT);
+    CREATE TABLE IF NOT EXISTS ingresos_fijos(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, monto REAL, dia INTEGER, banco TEXT, activo INTEGER DEFAULT 1);
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -1502,3 +1504,62 @@ def asesor_borrar(request: Request):
     u = user(request)
     c = db(); c.execute("DELETE FROM asesor_hist WHERE user_id=? AND modo='chat'", (u["id"],)); c.commit(); c.close()
     return RedirectResponse("/asesor", 303)
+
+
+# ---------- Ingresos fijos ----------
+@app.get("/ingresos")
+def pagina_ingresos(request: Request):
+    u = user(request)
+    c = db()
+    filas = c.execute("""SELECT i.*, u.nombre AS responsable FROM ingresos_fijos i JOIN users u ON u.id=i.user_id
+        WHERE i.activo=1 ORDER BY i.dia""").fetchall()
+    hoy = date.today()
+    lista = []
+    for r in filas:
+        y, mm = (hoy.year, hoy.month)
+        f = date(y, mm, min(r["dia"], calendar.monthrange(y, mm)[1]))
+        if f < hoy:
+            y, mm = (hoy.year + hoy.month // 12, hoy.month % 12 + 1)
+            f = date(y, mm, min(r["dia"], calendar.monthrange(y, mm)[1]))
+        lista.append({"r": r, "prox": f, "dias": (f - hoy).days})
+    users = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
+    total = sum(x["r"]["monto"] for x in lista)
+    c.close()
+    return render(request, "ingresos.html", u=u, lista=lista, total=total, usuarios_i=users, hoy=hoy.isoformat())
+
+
+@app.post("/ingresos")
+def crear_ingreso(request: Request, nombre: str = Form(...), monto: str = Form(...), dia: int = Form(...), banco: str = Form("Nu"),
+                  persona: int = Form(0)):
+    u = user(request)
+    try:
+        v = abs(captura.numero_es(monto))
+    except ValueError:
+        return volver(request, "/ingresos", err="Escribe el valor en números")
+    c = db()
+    c.execute("INSERT INTO ingresos_fijos(user_id,nombre,monto,dia,banco) VALUES(?,?,?,?,?)",
+              (persona or u["id"], nombre.strip()[:60], v, max(1, min(31, dia)), banco.strip()[:40]))
+    c.commit(); c.close()
+    return volver(request, "/ingresos", msg="Ingreso guardado")
+
+
+@app.post("/ingresos/{iid}/llego")
+def ingreso_llego(request: Request, iid: int):
+    """Registra que el ingreso ya llegó: queda como movimiento pendiente que el extracto confirma."""
+    user(request)
+    c = db()
+    r = c.execute("SELECT * FROM ingresos_fijos WHERE id=?", (iid,)).fetchone()
+    if r:
+        cuentas.asegurar(c, r["user_id"], r["banco"] or "Nu")
+        captura.insertar(c, r["user_id"], "ingreso", r["monto"], r["nombre"], date.today().isoformat(), r["banco"] or "Nu", "manual",
+                         [], "provisional")
+        c.commit()
+    c.close()
+    return volver(request, "/ingresos", msg="Registrado: quedó como ingreso pendiente de confirmar con el extracto")
+
+
+@app.post("/ingresos/{iid}/borrar")
+def borrar_ingreso(request: Request, iid: int):
+    user(request)
+    c = db(); c.execute("DELETE FROM ingresos_fijos WHERE id=?", (iid,)); c.commit(); c.close()
+    return volver(request, "/ingresos", msg="Ingreso quitado")

@@ -19,6 +19,9 @@ cercano y directo, sin sermones. Todas las cifras están en pesos colombianos (C
 
 Reglas:
 - Usa SOLO las cifras del contexto; no inventes saldos, tasas ni fechas. Si falta un dato, dilo y di cómo conseguirlo.
+- Los ingresos fijos que la familia espera (sueldo, quincenas) vienen en el contexto con su fecha. Una proyección día a día dice cuál será el saldo más bajo. No digas que "están en negativo" ni que "no les alcanza" mirando solo el saldo de hoy: \
+usa la proyección. Solo hay un problema real si el saldo proyectado baja de cero en alguna fecha; en ese caso di la fecha y el monto. Si en el contexto aparece "ingresos del mes: $0", \
+puede ser que aún no se hayan registrado en la app, no que no existan.
 - Da recomendaciones concretas con números del contexto (cuánto, hasta cuándo). Prioriza: primero lo que ahorra más plata o evita un cobro.
 - Sé breve: un resumen de una línea, de 3 a 5 acciones numeradas y, si aplica, una alerta. Máximo ~250 palabras en los análisis y ~150 en las respuestas a preguntas.
 - Formato: **negritas** para las cifras clave y listas con "-" o "1.". No uses títulos ni tablas.
@@ -88,8 +91,19 @@ def contexto(c, hoy=None):
         if cj:
             L.append(f"  Cajitas de {s['banco']}: {_pesos(cj['saldo'])} al {cj['ea']:.2f} % E.A., rinden ≈ {_pesos(cj['rend_dia'])} al día y {_pesos(cj['rend_mes'])} al mes.")
     d = metas.disponible(c, hoy)
+    fijos = c.execute("SELECT nombre, monto, dia FROM ingresos_fijos WHERE activo=1 ORDER BY dia").fetchall()
+    if fijos:
+        L.append("Ingresos fijos esperados cada mes: " + "; ".join(f"{r['nombre']} {_pesos(r['monto'])} el día {r['dia']}" for r in fijos)
+                 + ". Además pueden entrar ingresos variables por trabajos adicionales.")
+    else:
+        L.append("No se han registrado ingresos fijos esperados (sueldo, quincenas): sin ellos no se puede proyectar el flujo.")
     if d:
-        L.append(f"Cuánto puede gastar: saldo total {_pesos(d['saldo'])}, comprometido hasta el {d['fin']} {_pesos(d['comprometido'])}, "
+        if d["ingresos"]:
+            L.append(f"Hasta el {d['fin']} se esperan ingresos fijos por {_pesos(d['ingresos_total'])}: " + "; ".join(f"{x['nombre']} {_pesos(x['monto'])} el {x['fecha']}" for x in d["ingresos"]) + ".")
+        if d["minimo"] is not None:
+            L.append(f"Proyección del saldo hasta el {d['fin']}: el punto más bajo sería {_pesos(d['minimo'])} el {d['fecha_min']}"
+                     f"{' (NEGATIVO: un pago vence antes de que llegue el ingreso)' if d['minimo'] < 0 else ' (no baja de cero)'}.")
+        L.append(f"Cuánto puede gastar: saldo total {_pesos(d['saldo'])} + ingresos esperados {_pesos(d['ingresos_total'])} - comprometido hasta el {d['fin']} {_pesos(d['comprometido'])}, "
                  f"libre {_pesos(d['libre'])} = {_pesos(d['por_dia'])} por día durante {d['dias']} días. Hoy lleva gastado {_pesos(d['gastado_hoy'])}.")
         for x in d["comp"][:8]:
             L.append(f"  Compromiso: {x['que']}{' el ' + x['fecha'].isoformat() if x['fecha'] else ''} por {_pesos(x['monto'])}.")

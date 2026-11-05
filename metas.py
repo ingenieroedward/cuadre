@@ -56,6 +56,32 @@ def horizonte(c, hoy):
     return obj, True
 
 
+def ingresos_esperados(c, hoy, fin):
+    """Ingresos fijos (sueldo, quincenas) que llegan después de hoy y hasta el horizonte."""
+    out = []
+    for r in c.execute("SELECT * FROM ingresos_fijos WHERE activo=1").fetchall():
+        for k in range(0, 3):
+            y, m = hoy.year + (hoy.month - 1 + k) // 12, (hoy.month - 1 + k) % 12 + 1
+            f = date(y, m, min(r["dia"], calendar.monthrange(y, m)[1]))
+            if hoy < f <= fin:
+                out.append({"nombre": r["nombre"], "fecha": f, "monto": r["monto"]})
+    out.sort(key=lambda x: x["fecha"])
+    return out
+
+
+def proyectar(saldo, ingresos, comp, fin):
+    """Saldo después de cada movimiento esperado (los ingresos del día entran primero). Devuelve el punto más bajo."""
+    ev = [(x["fecha"], 0, x["monto"]) for x in ingresos] + [(x["fecha"] or fin, 1, -x["monto"]) for x in comp]
+    ev.sort(key=lambda e: (e[0], e[1]))
+    bal, minimo, fecha_min, serie = saldo, None, None, []
+    for f, _, delta in ev:
+        bal += delta
+        serie.append((f, bal))
+        if minimo is None or bal < minimo:
+            minimo, fecha_min = bal, f
+    return minimo, fecha_min, serie
+
+
 def disponible(c, hoy=None):
     """¿Cuánto puedo gastar por día? Devuelve None si aún no hay saldos."""
     hoy = hoy or date.today()
@@ -90,10 +116,16 @@ def disponible(c, hoy=None):
             comp.append({"que": f"Meta: {m['nombre']}", "fecha": None, "monto": e["falta"]})
     comp.sort(key=lambda x: (x["fecha"] or date.max))
     total = sum(x["monto"] for x in comp)
-    libre = saldo - total
+    ingresos = ingresos_esperados(c, hoy, fin)
+    ing_total = sum(x["monto"] for x in ingresos)
+    libre = saldo + ing_total - total
+    minimo, fecha_min, serie = proyectar(saldo, ingresos, comp, fin)
     gastado_hoy = c.execute(f"""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE monto<0 AND fecha=? AND {avisos.EXC}""",
                             (hoy.isoformat(),)).fetchone()["v"]
     por_dia = libre / dias if dias > 0 else libre
+    hay_ingresos = c.execute("SELECT 1 FROM ingresos_fijos WHERE activo=1").fetchone() is not None
     return {"saldo": saldo, "comp": comp, "comprometido": total, "libre": libre, "dias": dias, "fin": fin, "por_dia": por_dia,
             "gastado_hoy": gastado_hoy, "restante_hoy": por_dia - gastado_hoy, "es_dia": es_dia,
-            "estado": "mal" if libre < 0 else ("justo" if por_dia < 20000 else "bien")}
+            "ingresos": ingresos, "ingresos_total": ing_total, "hay_ingresos": hay_ingresos,
+            "minimo": minimo, "fecha_min": fecha_min, "serie": serie,
+            "estado": "mal" if (libre < 0 or (minimo is not None and minimo < 0)) else ("justo" if por_dia < 20000 else "bien")}
