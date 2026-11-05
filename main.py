@@ -225,6 +225,9 @@ def init():
                     c.execute("INSERT OR IGNORE INTO asesor_acciones(user_id,texto,estado,hist_id,creado) VALUES(?,?,?,?,?)",
                               (h["user_id"], t, "pendiente", h["id"], h["creado"]))
         c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('mig_plan_ia','1')")
+    if not c.execute("SELECT 1 FROM config WHERE clave='mig_plan_unico'").fetchone():
+        asesor.unificar_acciones(c)
+        c.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES('mig_plan_unico','1')")
     # Corrección única: antes se suponía que Nu estaba exenta; Nu sí cobra 4x1000. La persona puede cambiarlo en Cuentas.
     # Corrección única (la persona confirmó): Nu está exenta de 4x1000 y Nequi sí lo cobra.
     if not c.execute("SELECT 1 FROM config WHERE clave='mig_gmf_v2'").fetchone():
@@ -1426,9 +1429,7 @@ def _guardar_hist(c, user_id, modo, pregunta, respuesta, firma="", tok=(0, 0)):
     cur = c.execute("INSERT INTO asesor_hist(user_id,modo,pregunta,respuesta,creado,firma,tok_in,tok_out) VALUES(?,?,?,?,?,?,?,?)",
                     (user_id, modo, pregunta, respuesta, avisos.ahora().isoformat(), firma, tok[0], tok[1]))
     if modo in asesor.MODOS:
-        for t in asesor.extraer_acciones(respuesta):
-            c.execute("INSERT OR IGNORE INTO asesor_acciones(user_id,texto,estado,hist_id,creado) VALUES(?,?,?,?,?)",
-                      (user_id, t, "pendiente", cur.lastrowid, avisos.ahora().isoformat()))
+        asesor.guardar_acciones(c, user_id, asesor.extraer_acciones(respuesta), cur.lastrowid, avisos.ahora().isoformat())
     c.commit()
 
 

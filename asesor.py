@@ -193,6 +193,45 @@ def extraer_acciones(texto):
     return out[:6]
 
 
+def _firma_accion(t):
+    palabras = {w for w in re.findall(r"[a-záéíóúñ]{4,}", t.lower())}
+    montos = set(re.findall(r"\d[\d.]{3,}", t))
+    return palabras, montos
+
+
+def parecida(a, b):
+    """True si dos consejos dicen lo mismo con otras palabras (misma idea o mismos montos)."""
+    pa, ma = _firma_accion(a)
+    pb, mb = _firma_accion(b)
+    if not pa or not pb:
+        return a.strip() == b.strip()
+    jac = len(pa & pb) / len(pa | pb)
+    return jac >= 0.34 or (len(ma & mb) >= 2 and jac >= 0.15)
+
+
+def guardar_acciones(c, user_id, acciones, hist_id, ahora):
+    """Guarda consejos sin repetir: si ya hay uno parecido pendiente lo actualiza (cifras al día); si ya está hecho, lo omite."""
+    for t in acciones:
+        previas = c.execute("SELECT id,texto,estado FROM asesor_acciones").fetchall()
+        hit = next((r for r in previas if parecida(r["texto"], t)), None)
+        if hit is None:
+            c.execute("INSERT OR IGNORE INTO asesor_acciones(user_id,texto,estado,hist_id,creado) VALUES(?,?,?,?,?)",
+                      (user_id, t, "pendiente", hist_id, ahora))
+        elif hit["estado"] == "pendiente" and hit["texto"] != t:
+            c.execute("UPDATE asesor_acciones SET texto=?, hist_id=? WHERE id=?", (t, hist_id, hit["id"]))
+
+
+def unificar_acciones(c):
+    """Colapsa consejos pendientes repetidos (deja el más reciente)."""
+    filas = c.execute("SELECT id,texto FROM asesor_acciones WHERE estado='pendiente' ORDER BY id DESC").fetchall()
+    quedan = []
+    for r in filas:
+        if any(parecida(r["texto"], q) for q in quedan):
+            c.execute("DELETE FROM asesor_acciones WHERE id=?", (r["id"],))
+        else:
+            quedan.append(r["texto"])
+
+
 def partes(texto):
     """Separa una respuesta en: resumen (primer párrafo), acciones (lista numerada) y el resto (alertas, notas)."""
     resumen, acciones, resto = "", [], []
