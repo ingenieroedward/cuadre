@@ -1,17 +1,40 @@
 {% extends "base.html" %}{% block t %}Asesor con IA · Cuadre{% endblock %}{% block c %}
-<div class="ph"><div><h1>Asesor con IA</h1><p>Consejos sobre tus cuentas, tus deudas y tu tarjeta</p></div><span class="pill">{{usos}}/{{max_dia}} hoy</span></div>
+<div class="ph"><div><h1>Asesor con IA</h1><p>Consejos con tus cifras, que recuerda y no repite</p></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill" title="Consultas de hoy">{{ico('star',13)}}{{usos}}/{{max_dia}} hoy</span>
+<span class="pill" style="background:var(--sf2);color:var(--mu)" title="Costo estimado de la IA este mes">≈ US${{('%.4f'|format(gasto.usd)).replace('.',',')}} este mes</span></div></div>
 <div class="stack">
 {% if not clave %}<div class="card alert x"><div class="ic">{{ico('key',22)}}</div><div class="t"><b>Falta la clave de Anthropic</b>
-<div class="sub">En Dokploy agrega la variable <code>ANTHROPIC_API_KEY</code> con tu clave y vuelve a desplegar. Cada consulta cuesta una fracción de centavo con el modelo Haiku.</div></div></div>{% endif %}
-<div class="card alert p"><div class="ic">{{ico('shield',22)}}</div><div class="t"><b>Qué se envía a Anthropic</b>
-<div class="sub">Solo un resumen de cifras: totales del mes, categorías, saldos, deudas, tarjeta y metas. <b>No se envían</b> nombres de personas, cédula, números de cuenta ni las descripciones de tus movimientos. El modelo es {{modelo}}.</div></div></div>
+<div class="sub">En Dokploy agrega la variable <code>ANTHROPIC_API_KEY</code> con tu clave y vuelve a desplegar.</div></div></div>{% endif %}
+
+{% if acciones %}{% set hechas=acciones|selectattr('estado','equalto','hecha')|list|length %}
+<div class="card" id="plan"><div class="hd"><h2>{{ico('check',19)}}Plan de acción</h2><span class="sub">{{hechas}} de {{acciones|length}} hechas</span></div>
+<div class="bar ok" style="margin:-4px 0 10px"><i style="width:{{(hechas/acciones|length*100)|round|int}}%"></i></div>
+{% for a in acciones if a.estado=='pendiente' %}<form method="post" action="/asesor/accion/{{a.id}}" class="accion"><button class="chk" aria-label="Marcar como hecha"></button><span>{{a.texto|md_inline}}</span></form>{% endfor %}
+{% for a in acciones if a.estado=='hecha' %}<form method="post" action="/asesor/accion/{{a.id}}" class="accion hecha"><button class="chk on" aria-label="Volver a pendiente">{{ico('check',14)}}</button><span>{{a.texto|md_inline}}</span></form>{% endfor %}
+{% if hechas %}<form method="post" action="/asesor/acciones/limpiar" style="margin-top:8px"><button class="ghost" style="font-size:13px">Quitar las hechas</button></form>{% endif %}
+<p class="sub" style="margin-top:8px">El asesor sabe qué ya hiciste y qué sigue pendiente, así que no te repite los mismos consejos.</p></div>{% endif %}
+
 <div class="g2">
-{% for modo,titulo,icono,desc,btn in [('analisis','Analiza mis finanzas','chart','Ritmo de gasto, deudas, ahorro y alertas del mes','Analizar'),('tarjeta','Sácale provecho a tu tarjeta','card','Cupo, pago, cuotas, cuota de manejo, puntos e intereses','Ver consejos')] %}
-<div class="card"><div class="hd"><h2>{{ico(icono,19)}}{{titulo}}</h2></div><p class="sub" style="margin:-6px 0 12px">{{desc}}</p>
-<form method="post" action="/asesor/analizar"><input type="hidden" name="modo" value="{{modo}}"><button {{'disabled' if not clave}}>{{ico('star',16)}}{{btn}}</button></form>
-{% set h=ultimos[modo] %}{% if h %}<div style="margin-top:14px;border-top:1px solid var(--ln);padding-top:12px"><div class="sub" style="margin-bottom:6px">Último análisis · {{h.creado[:16].replace('T',' ')}}</div><div class="md-box">{{h.respuesta|md}}</div></div>{% endif %}</div>{% endfor %}</div>
+{% for modo,titulo,icono,desc in [('analisis','Analiza mis finanzas','chart','Ritmo de gasto, deudas, ahorro y alertas del mes'),('tarjeta','Sácale provecho a tu tarjeta','card','Cupo, pago, cuotas, cuota de manejo, puntos e intereses')] %}
+{% set x=ultimos[modo] %}{% set h=x.h %}{% set p=x.p %}
+<div class="card"><div class="hd"><h2>{{ico(icono,19)}}{{titulo}}</h2>{% if h %}<span class="pill {{'ok' if x.vigente else 'warn'}}">{{'Al día' if x.vigente else 'Hay cambios'}}</span>{% endif %}</div>
+{% if not h %}<p class="sub" style="margin:-6px 0 14px">{{desc}}</p>
+<form method="post" action="/asesor/analizar"><input type="hidden" name="modo" value="{{modo}}"><button {{'disabled' if not clave}}>{{ico('star',16)}}Analizar</button></form>
+{% else %}
+<div class="sub" style="margin:-6px 0 12px">Guardado el {{h.creado[8:10]}}/{{h.creado[5:7]}} a las {{h.creado[11:16]}}{% if x.vigente %} · tus cifras siguen igual, no hace falta gastar IA{% endif %}</div>
+{% if p.resumen %}<div class="resumen-box">{{p.resumen|md_inline}}</div>{% endif %}
+{% for a in p.acciones %}<div class="paso"><span class="n">{{loop.index}}</span><div>{{a|md_inline}}</div></div>{% endfor %}
+{% for t in p.alerta %}<div class="alerta-box">{{ico('alert',17)}}<div>{{t|md_inline}}</div></div>{% endfor %}
+{% for t in p.notas %}<p class="sub" style="margin:8px 0 0">{{t|md_inline}}</p>{% endfor %}
+<form method="post" action="/asesor/analizar" style="margin-top:14px"><input type="hidden" name="modo" value="{{modo}}">
+{% if x.vigente %}<input type="hidden" name="forzar" value="1"><button class="line" {{'disabled' if not clave}}>Volver a analizar</button>{% else %}<button {{'disabled' if not clave}}>{{ico('star',16)}}Actualizar consejo</button>{% endif %}</form>
+{% endif %}</div>{% endfor %}</div>
+
 <div class="card"><div class="hd"><h2>{{ico('help',19)}}Pregúntale lo que quieras</h2>{% if chat %}<form method="post" action="/asesor/borrar"><button class="ghost" title="Borrar la conversación">{{ico('trash',16)}}</button></form>{% endif %}</div>
-{% for h in chat %}<div style="margin-bottom:14px"><div class="chat-q">{{h.pregunta}}</div><div class="md-box" style="margin-top:8px">{{h.respuesta|md}}</div></div>{% endfor %}
-<form class="frm" method="post" action="/asesor/preguntar"><label class="f">Tu pregunta<input name="pregunta" maxlength="600" placeholder="¿Me conviene pagar el total de la tarjeta o abonar más al crédito de Addi?" required {{'disabled' if not clave}}></label>
-<button {{'disabled' if not clave}}>Preguntar</button></form>
-<p class="sub" style="margin-top:10px">Son orientaciones a partir de tus cifras, no asesoría financiera profesional. Para decisiones grandes, confírmalas con tu banco.</p></div></div>{% endblock %}
+{% for h in chat %}<div class="burbuja q">{{h.pregunta}}</div><div class="burbuja a"><span class="av s" style="background:var(--ac);color:#fff">{{ico('star',14)}}</span><div class="md-box">{{h.respuesta|md}}</div></div>{% endfor %}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">{% for q in ['¿Pago el total o el mínimo de la tarjeta?','¿Me conviene adelantar el crédito de Addi?','¿Cuánto puedo ahorrar este mes?','¿Cómo evito la cuota de manejo?'] %}<button type="button" class="pill" style="border:0;cursor:pointer" onclick="const i=document.getElementById('q');i.value=this.textContent;i.focus()">{{q}}</button>{% endfor %}</div>
+<form class="frm" method="post" action="/asesor/preguntar"><div style="display:flex;gap:8px"><input id="q" name="pregunta" maxlength="600" placeholder="Escribe tu pregunta…" required style="flex:1" {{'disabled' if not clave}}><button {{'disabled' if not clave}}>Preguntar</button></div></form>
+<details class="how" style="border-top:0;padding-bottom:0"><summary style="font-size:13px;font-weight:600">{{ico('shield',15)}}Qué se envía a Anthropic y cuánto cuesta</summary>
+<p class="sub">Solo un resumen de cifras: totales del mes, categorías, saldos, deudas, tarjeta y metas. <b>No se envían</b> nombres de personas, cédula, números de cuenta ni las descripciones de tus movimientos. Modelo: {{modelo}}.
+Las respuestas se guardan: si preguntas lo mismo con las mismas cifras, o pides un análisis y nada cambió, se reutiliza la respuesta sin gastar. Este mes llevas {{gasto.n}} consulta{{'s' if gasto.n!=1}} (≈ {{'{:,}'.format(gasto.tokens).replace(',','.')}} tokens).
+Son orientaciones a partir de tus cifras, no asesoría financiera profesional.</p></details></div></div>{% endblock %}

@@ -116,7 +116,14 @@ def _md(t):
     return Markup("".join(out))
 
 
+def _md_inline(t):
+    import re as _re
+    from markupsafe import Markup, escape
+    return Markup(_re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", str(escape(t or ""))))
+
+
 tpl.env.filters["md"] = _md
+tpl.env.filters["md_inline"] = _md_inline
 tpl.env.filters["inicial"] = lambda t: (t or "?").strip()[:1].upper()
 MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 DIA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -189,7 +196,10 @@ def init():
     CREATE TABLE IF NOT EXISTS metas(id INTEGER PRIMARY KEY, user_id INTEGER, nombre TEXT, objetivo REAL, periodo TEXT DEFAULT 'total',
         fecha_limite TEXT, bono_ea REAL DEFAULT 0, banco TEXT, avisar INTEGER DEFAULT 1, activa INTEGER DEFAULT 1);
     CREATE TABLE IF NOT EXISTS meta_aportes(id INTEGER PRIMARY KEY, meta_id INTEGER, fecha TEXT, monto REAL, nota TEXT);
-    CREATE TABLE IF NOT EXISTS asesor_hist(id INTEGER PRIMARY KEY, user_id INTEGER, modo TEXT, pregunta TEXT, respuesta TEXT, creado TEXT);
+    CREATE TABLE IF NOT EXISTS asesor_hist(id INTEGER PRIMARY KEY, user_id INTEGER, modo TEXT, pregunta TEXT, respuesta TEXT, creado TEXT,
+        firma TEXT, tok_in INTEGER DEFAULT 0, tok_out INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS asesor_acciones(id INTEGER PRIMARY KEY, user_id INTEGER, texto TEXT UNIQUE, estado TEXT DEFAULT 'pendiente',
+        hist_id INTEGER, creado TEXT);
     CREATE TABLE IF NOT EXISTS passkeys(id INTEGER PRIMARY KEY, user_id INTEGER, credential_id TEXT UNIQUE, public_key TEXT,
         sign_count INTEGER DEFAULT 0, nombre TEXT, creado TEXT);
     """)
@@ -199,6 +209,7 @@ def init():
                               ("users", "token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
                               ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
                               ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
+                              ("asesor_hist", "firma", "TEXT"), ("asesor_hist", "tok_in", "INTEGER DEFAULT 0"), ("asesor_hist", "tok_out", "INTEGER DEFAULT 0"),
                               ("cuentas", "cuota_manejo", "REAL DEFAULT 0"), ("cuentas", "manejo_cond", "TEXT DEFAULT 'siempre'"), ("pagos_tarjeta", "corte", "TEXT"), ("rend_cfg", "cajitas_base", "REAL"), ("rend_cfg", "base_fecha", "TEXT"), ("pagos_tarjeta", "cupo", "REAL"), ("pagos_tarjeta", "usado", "REAL"), ("pagos_tarjeta", "disponible", "REAL")]:
         if col not in [r["name"] for r in c.execute(f"PRAGMA table_info({tabla})")]:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defin}")
@@ -1364,9 +1375,13 @@ def pagina_agenda(request: Request, dias: int = 60):
 
 
 # ---------- Asesor con IA ----------
-def _guardar_hist(c, user_id, modo, pregunta, respuesta):
-    c.execute("INSERT INTO asesor_hist(user_id,modo,pregunta,respuesta,creado) VALUES(?,?,?,?,?)",
-              (user_id, modo, pregunta, respuesta, avisos.ahora().isoformat()))
+def _guardar_hist(c, user_id, modo, pregunta, respuesta, firma="", tok=(0, 0)):
+    cur = c.execute("INSERT INTO asesor_hist(user_id,modo,pregunta,respuesta,creado,firma,tok_in,tok_out) VALUES(?,?,?,?,?,?,?,?)",
+                    (user_id, modo, pregunta, respuesta, avisos.ahora().isoformat(), firma, tok[0], tok[1]))
+    if modo in asesor.MODOS:
+        for t in asesor.extraer_acciones(respuesta):
+            c.execute("INSERT OR IGNORE INTO asesor_acciones(user_id,texto,estado,hist_id,creado) VALUES(?,?,?,?,?)",
+                      (user_id, t, "pendiente", cur.lastrowid, avisos.ahora().isoformat()))
     c.commit()
 
 
@@ -1374,16 +1389,23 @@ def _guardar_hist(c, user_id, modo, pregunta, respuesta):
 def pagina_asesor(request: Request):
     u = user(request)
     c = db()
-    ultimos = {md: c.execute("SELECT * FROM asesor_hist WHERE user_id=? AND modo=? ORDER BY id DESC LIMIT 1", (u["id"], md)).fetchone()
-               for md in asesor.MODOS}
+    ultimos = {}
+    for md in asesor.MODOS:
+        h = c.execute("SELECT * FROM asesor_hist WHERE modo=? ORDER BY id DESC LIMIT 1", (md,)).fetchone()
+        ultimos[md] = {"h": h, "p": asesor.partes(h["respuesta"]) if h else None}
+    ctx_actual = asesor.firma(asesor.contexto(c)) if asesor.hay_clave() else ""
+    for md, x in ultimos.items():
+        x["vigente"] = bool(x["h"] and x["h"]["firma"] and x["h"]["firma"] == ctx_actual)
     chat = list(reversed(c.execute("SELECT * FROM asesor_hist WHERE user_id=? AND modo='chat' ORDER BY id DESC LIMIT 8", (u["id"],)).fetchall()))
+    acciones = c.execute("SELECT * FROM asesor_acciones ORDER BY estado DESC, id DESC LIMIT 14").fetchall()
     usos = asesor.usos_hoy(c, u["id"])
+    gasto = asesor.gasto_mes(c)
     c.close()
-    return render(request, "asesor.html", u=u, clave=asesor.hay_clave(), ultimos=ultimos, chat=chat, usos=usos, max_dia=asesor.MAX_DIA,
-                  modelo=asesor.MODELO)
+    return render(request, "asesor.html", u=u, clave=asesor.hay_clave(), ultimos=ultimos, chat=chat, acciones=acciones, usos=usos,
+                  max_dia=asesor.MAX_DIA, modelo=asesor.MODELO, gasto=gasto)
 
 
-def _llamar_asesor(request, u, modo, mensajes, effort, max_tokens, pregunta):
+def _llamar_asesor(request, u, modo, mensajes, effort, max_tokens, pregunta, firma=""):
     c = db()
     try:
         if not asesor.hay_clave():
@@ -1391,27 +1413,36 @@ def _llamar_asesor(request, u, modo, mensajes, effort, max_tokens, pregunta):
         if asesor.usos_hoy(c, u["id"]) >= asesor.MAX_DIA:
             return volver(request, "/asesor", err=f"Llegaste al límite de {asesor.MAX_DIA} consultas de hoy. Mañana sigues")
         try:
-            texto, aviso = asesor.consultar(mensajes, effort, max_tokens)
+            texto, aviso, tok = asesor.consultar(mensajes, effort, max_tokens)
         except Exception as e:
             print("asesor:", type(e).__name__, str(e)[:200], flush=True)
             return volver(request, "/asesor", err=asesor.mensaje_de_error(e))
         if not texto:
             return volver(request, "/asesor", err=aviso or "El asistente no devolvió texto. Intenta de nuevo")
-        _guardar_hist(c, u["id"], modo, pregunta, texto)
+        _guardar_hist(c, u["id"], modo, pregunta, texto, firma, tok)
         return volver(request, "/asesor", msg=aviso or "Listo")
     finally:
         c.close()
 
 
 @app.post("/asesor/analizar")
-def asesor_analizar(request: Request, modo: str = Form("analisis")):
+def asesor_analizar(request: Request, modo: str = Form("analisis"), forzar: str = Form("")):
     u = user(request)
     if modo not in asesor.MODOS:
         modo = "analisis"
     instruccion, effort, max_tokens = asesor.MODOS[modo]
-    c = db(); ctx = asesor.contexto(c); c.close()
-    return _llamar_asesor(request, u, modo, [{"role": "user", "content": f"{instruccion}\n\nContexto de nuestras finanzas:\n{ctx}"}],
-                          effort, max_tokens, instruccion)
+    c = db()
+    ctx = asesor.contexto(c)
+    fx = asesor.firma(ctx)
+    if not forzar:                 # si nada cambió desde la última vez, se reutiliza la respuesta guardada: sin costo
+        ya = c.execute("SELECT id FROM asesor_hist WHERE modo=? AND firma=? ORDER BY id DESC LIMIT 1", (modo, fx)).fetchone()
+        if ya:
+            c.close()
+            return volver(request, "/asesor", msg="Tus cifras no han cambiado: te muestro el consejo guardado (sin gastar IA)")
+    mem = asesor.memoria(c, u["id"])
+    c.close()
+    contenido = f"{instruccion}\n\nContexto de nuestras finanzas:\n{ctx}" + (f"\n\n{mem}" if mem else "")
+    return _llamar_asesor(request, u, modo, [{"role": "user", "content": contenido}], effort, max_tokens, instruccion, fx)
 
 
 @app.post("/asesor/preguntar")
@@ -1422,14 +1453,39 @@ def asesor_preguntar(request: Request, pregunta: str = Form(...)):
         return volver(request, "/asesor", err="Escribe tu pregunta")
     c = db()
     ctx = asesor.contexto(c)
-    previos = list(reversed(c.execute("SELECT pregunta,respuesta FROM asesor_hist WHERE user_id=? AND modo='chat' ORDER BY id DESC LIMIT 3",
+    fx = asesor.firma(ctx)
+    ya = c.execute("SELECT id FROM asesor_hist WHERE modo='chat' AND firma=? AND lower(pregunta)=lower(?) ORDER BY id DESC LIMIT 1", (fx, pregunta)).fetchone()
+    if ya:                         # misma pregunta con las mismas cifras: se copia la respuesta guardada
+        r = c.execute("SELECT respuesta FROM asesor_hist WHERE id=?", (ya["id"],)).fetchone()
+        c.execute("INSERT INTO asesor_hist(user_id,modo,pregunta,respuesta,creado,firma) VALUES(?,?,?,?,?,?)",
+                  (u["id"], "chat", pregunta, r["respuesta"], avisos.ahora().isoformat(), fx))
+        c.commit(); c.close()
+        return volver(request, "/asesor", msg="Ya habías hecho esa pregunta con estas mismas cifras: te muestro la respuesta guardada (sin gastar IA)")
+    mem = asesor.memoria(c, u["id"])
+    previos = list(reversed(c.execute("SELECT pregunta,respuesta FROM asesor_hist WHERE user_id=? AND modo='chat' AND tok_in>0 ORDER BY id DESC LIMIT 2",
                                       (u["id"],)).fetchall()))
     c.close()
     msgs = []
     for p in previos:
-        msgs += [{"role": "user", "content": p["pregunta"]}, {"role": "assistant", "content": p["respuesta"]}]
-    msgs.append({"role": "user", "content": f"Contexto de nuestras finanzas:\n{ctx}\n\nMi pregunta: {pregunta}"})
-    return _llamar_asesor(request, u, "chat", msgs, "low", 3000, pregunta)
+        msgs += [{"role": "user", "content": p["pregunta"]}, {"role": "assistant", "content": p["respuesta"][:900]}]
+    msgs.append({"role": "user", "content": f"Contexto de nuestras finanzas:\n{ctx}" + (f"\n\n{mem}" if mem else "") + f"\n\nMi pregunta: {pregunta}"})
+    return _llamar_asesor(request, u, "chat", msgs, "low", 3000, pregunta, fx)
+
+
+@app.post("/asesor/accion/{aid}")
+def asesor_accion(request: Request, aid: int):
+    user(request)
+    c = db()
+    c.execute("UPDATE asesor_acciones SET estado=CASE estado WHEN 'pendiente' THEN 'hecha' ELSE 'pendiente' END WHERE id=?", (aid,))
+    c.commit(); c.close()
+    return RedirectResponse("/asesor#plan", 303)
+
+
+@app.post("/asesor/acciones/limpiar")
+def asesor_limpiar(request: Request):
+    user(request)
+    c = db(); c.execute("DELETE FROM asesor_acciones WHERE estado='hecha'"); c.commit(); c.close()
+    return RedirectResponse("/asesor#plan", 303)
 
 
 @app.post("/asesor/borrar")

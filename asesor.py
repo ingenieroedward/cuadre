@@ -1,6 +1,8 @@
 """Asesor financiero con IA (Claude Haiku). Solo manda un RESUMEN de cifras: sin nombres de personas, cédula,
 números de cuenta ni descripciones de movimientos."""
+import hashlib
 import os
+import re
 from datetime import date, timedelta
 
 import avisos
@@ -21,6 +23,8 @@ Reglas:
 - Sé breve: un resumen de una línea, de 3 a 5 acciones numeradas y, si aplica, una alerta. Máximo ~250 palabras en los análisis y ~150 en las respuestas a preguntas.
 - Formato: **negritas** para las cifras clave y listas con "-" o "1.". No uses títulos ni tablas.
 - No eres un asesor financiero profesional: no prometas rendimientos ni recomiendes productos de inversión específicos. Para decisiones grandes (créditos, inversiones), sugiere confirmar con el banco.
+
+Memoria: si el contexto trae "Memoria del asesor", ya diste esos consejos antes. No los repitas: reconoce los que la familia marcó como hechos, retoma solo los pendientes que sigan siendo urgentes y aporta algo nuevo si cambió la situación.
 
 Hechos de la tarjeta de crédito Nu de esta familia (de su contrato y de los correos de Nu):
 - Los intereses de la tarjeta se calculan de forma compuesta y diaria (año de 360 días) y solo se pagan si no se paga el total del extracto; pagar el total antes de la fecha límite evita intereses.
@@ -135,16 +139,82 @@ def usos_hoy(c, user_id):
 
 
 def consultar(mensajes, effort="medium", max_tokens=4000):
-    """Llama a Claude. mensajes: lista de {'role','content'} que empieza y termina en 'user'. Devuelve (texto, aviso)."""
+    """Llama a Claude. mensajes: lista de {'role','content'} que empieza y termina en 'user'.
+    Devuelve (texto, aviso, (tokens_entrada, tokens_salida))."""
     import anthropic                                   # se importa aquí: la app arranca aunque no haya clave ni SDK
     cliente = anthropic.Anthropic(timeout=60.0, max_retries=2)
     r = cliente.messages.create(model=MODELO, max_tokens=max_tokens, system=SISTEMA, messages=mensajes,
                                 output_config={"effort": effort})
+    uso = getattr(r, "usage", None)
+    tok = (int(getattr(uso, "input_tokens", 0) or 0), int(getattr(uso, "output_tokens", 0) or 0))
     if r.stop_reason == "refusal":
-        return "", "El asistente no pudo responder a esta consulta."
+        return "", "El asistente no pudo responder a esta consulta.", tok
     texto = next((b.text for b in r.content if b.type == "text"), "").strip()
     aviso = "La respuesta quedó cortada por longitud; vuelve a preguntar de forma más corta." if r.stop_reason == "max_tokens" else ""
-    return texto, aviso
+    return texto, aviso, tok
+
+
+def costo_usd(tin, tout):
+    """Precio de Haiku 5.5: US$0,10 por millón de tokens de entrada y US$0,50 de salida (prompts de hasta 100 mil tokens)."""
+    return tin * 0.10 / 1e6 + tout * 0.50 / 1e6
+
+
+def firma(ctx, hoy=None):
+    """Huella del estado financiero: si no cambió (cifras redondeadas a $10.000) en la misma semana, el consejo sigue valiendo."""
+    hoy = hoy or date.today()
+    t = ctx.split("\n", 1)[1] if "\n" in ctx else ctx                  # sin la línea de la fecha
+    t = re.sub(r"Hoy lleva gastado [^.]*\.", "", t)
+    t = re.sub(r"\$([\d.]+)(?:,\d{2})?", lambda m: f"${round(int(m.group(1).replace('.', '') or 0) / 10000)}", t)
+    return hashlib.sha1(f"{hoy.isocalendar()[1]}|{t}".encode()).hexdigest()
+
+
+def extraer_acciones(texto):
+    out = []
+    for linea in texto.splitlines():
+        m = re.match(r"^\s*\d+[.)]\s+(.+)$", linea)
+        if m:
+            t = re.sub(r"\*\*", "", m.group(1)).strip()
+            if len(t) > 8:
+                out.append(t[:320])
+    return out[:6]
+
+
+def partes(texto):
+    """Separa una respuesta en: resumen (primer párrafo), acciones (lista numerada) y el resto (alertas, notas)."""
+    resumen, acciones, resto = "", [], []
+    for linea in (texto or "").splitlines():
+        s = linea.strip()
+        if not s:
+            continue
+        m = re.match(r"^\d+[.)]\s+(.+)$", s)
+        if m:
+            acciones.append(m.group(1))
+        elif not resumen and not acciones:
+            resumen = s
+        else:
+            resto.append(re.sub(r"^[-•*]\s+", "", s))
+    return {"resumen": resumen, "acciones": acciones, "resto": resto,
+            "alerta": [x for x in resto if re.match(r"(?i)^(\*\*)?alerta", x)], "notas": [x for x in resto if not re.match(r"(?i)^(\*\*)?alerta", x)]}
+
+
+def memoria(c, user_id):
+    """Lo que ya se aconsejó y lo que la familia marcó como hecho, para no repetir y dar continuidad (ocupa pocas palabras)."""
+    pend = [r["texto"] for r in c.execute("SELECT texto FROM asesor_acciones WHERE estado='pendiente' ORDER BY id DESC LIMIT 6")]
+    hechas = [r["texto"] for r in c.execute("SELECT texto FROM asesor_acciones WHERE estado='hecha' ORDER BY id DESC LIMIT 6")]
+    if not pend and not hechas:
+        return ""
+    L = ["Memoria del asesor (consejos anteriores):"]
+    if hechas:
+        L.append("Ya hecho por la familia: " + " | ".join(h[:140] for h in hechas))
+    if pend:
+        L.append("Consejos pendientes (aún sin hacer): " + " | ".join(p[:140] for p in pend))
+    return "\n".join(L)
+
+
+def gasto_mes(c):
+    r = c.execute("SELECT COALESCE(SUM(tok_in),0) i, COALESCE(SUM(tok_out),0) o, COUNT(*) n FROM asesor_hist WHERE substr(creado,1,7)=? AND tok_in>0",
+                  (avisos.ahora().strftime("%Y-%m"),)).fetchone()
+    return {"usd": costo_usd(r["i"], r["o"]), "n": r["n"], "tokens": r["i"] + r["o"]}
 
 
 def mensaje_de_error(e):

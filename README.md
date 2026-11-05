@@ -24,6 +24,8 @@ mes/persona/categoría, ingresos y gastos manuales, presupuestos, recordatorios 
 Define `ANTHROPIC_API_KEY` en Dokploy (y vuelve a desplegar). Opcionales: `AI_MODEL` (por defecto `claude-haiku-5-5`) y `AI_MAX_DIA`
 (consultas por persona al día, por defecto 30). Solo se envía a Anthropic un resumen de cifras: sin nombres, cédula, números de
 cuenta ni descripciones de movimientos. La clave nunca se muestra en la app.
+Las respuestas se guardan como memoria: si tus cifras (redondeadas a $10.000) no cambiaron en la semana, se reutiliza el consejo sin
+gastar IA; los consejos se vuelven un *plan de acción* que se marca como hecho, y el asesor lo recuerda para no repetirse.
 
 ## Metas, disponible diario y agenda
 - **Metas**: mensuales (como las de las cajitas de Nu, con bono de puntos E.A.) o por objetivo, con aportes y avisos.
