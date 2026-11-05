@@ -245,15 +245,13 @@ button.ocupado{opacity:.85;cursor:progress}button:disabled{cursor:not-allowed}
 #nprog{position:fixed;top:0;left:0;height:3px;width:0;z-index:998;background:linear-gradient(90deg,var(--ac2),var(--ac));border-radius:0 3px 3px 0;box-shadow:0 0 10px var(--ac);opacity:0;transition:width .4s ease,opacity .25s}
 #nprog.on{opacity:1;width:72%;transition:width 8s cubic-bezier(.1,.6,.2,1)}
 #nprog.fin{width:100%;opacity:0;transition:width .2s,opacity .4s .15s}
-.main .stack>*,.main>.card,.main>.g2>*,.main>.ph{animation:subir .5s cubic-bezier(.2,.7,.2,1) both}
+.main .stack>*,.main>.card,.main>.g2>*,.main>.ph{animation:aparece .28s ease-out both}
 .main .stack>*:nth-child(2){animation-delay:.05s}.main .stack>*:nth-child(3){animation-delay:.1s}.main .stack>*:nth-child(4){animation-delay:.15s}.main .stack>*:nth-child(5){animation-delay:.2s}.main .stack>*:nth-child(n+6){animation-delay:.25s}
-@keyframes subir{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.card{transition:transform .2s ease,box-shadow .2s ease}
-a.card:active,.li:active{transform:scale(.99)}
-@media(hover:hover){a.card:hover,a.li:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(40,10,80,.08)}}
-.fab{animation:fabin .5s .4s cubic-bezier(.3,1.6,.5,1) both}
-@keyframes fabin{from{opacity:0;transform:scale(.4) translateY(20px)}to{opacity:1;transform:none}}
-.hero{background-size:140% 140%;animation:subir .5s both,brillo 9s ease-in-out infinite}
+@keyframes aparece{from{opacity:0}to{opacity:1}}
+.hero .big,.cnt,.b{font-variant-numeric:tabular-nums}
+.card{transition:box-shadow .2s ease}
+@media(pointer:fine){a.card:active{transform:scale(.99)}}
+@media(hover:hover) and (pointer:fine){a.card:hover,a.li:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(40,10,80,.08)}}
+.hero{background-size:140% 140%;animation:brillo 9s ease-in-out infinite}
 @keyframes brillo{50%{background-position:100% 60%}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}#pl{display:none}}
-@view-transition{navigation:auto}

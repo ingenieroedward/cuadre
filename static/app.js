@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded",estadoPush);
   document.querySelectorAll('.hero .big,.cnt').forEach(function(el){
     var m=el.textContent.trim().match(/^(-?)\$\s?(-?)([\d.]+),(\d{2})$/);if(!m)return;
     var neg=(m[1]+m[2])==='-',fin=parseFloat(m[3].replace(/\./g,'')+'.'+m[4]),t0=performance.now();
-    function paso(t){var k=Math.min(1,(t-t0)/700),v=fin*(1-Math.pow(1-k,3));
+    function paso(t){var k=Math.min(1,(t-t0)/500),v=fin*(1-Math.pow(1-k,3));
       var txt=v.toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2});el.textContent=(neg?'-':'')+'$'+txt;
       if(k<1)requestAnimationFrame(paso);else el.textContent=m[0];}
     requestAnimationFrame(paso);
