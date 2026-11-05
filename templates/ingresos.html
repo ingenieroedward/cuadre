@@ -12,7 +12,5 @@
 <dialog id="ding"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px">Nuevo ingreso fijo</h2><button class="ghost" type="button" onclick="ding.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
 <form class="frm" method="post" action="/ingresos"><label class="f">Nombre<input name="nombre" placeholder="Pago del 15, Pago del 30…" required></label>
 <div class="frm row2"><label class="f">Valor<input name="monto" inputmode="decimal" placeholder="$ 1.500.000" required></label><label class="f">Día del mes<input name="dia" type="number" min="1" max="31" placeholder="15" required></label></div>
-<div class="frm row2"><label class="f">A qué cuenta llega<input name="banco" value="Nu" list="ing-cu"></label>
-<label class="f">De quién<select name="persona">{% for x in usuarios_i %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label></div>
-<datalist id="ing-cu">{% for b in cuentas_n %}<option value="{{b}}">{% endfor %}</datalist>
+<label class="f">A qué cuenta llega<select name="cuenta">{% for x in cuentas_op %}<option value="{{x.v}}" {{'selected' if x.user_id==u.id and x.nombre=='Nu'}}>{{x.label}}</option>{% endfor %}</select></label>
 <p class="sub">Si te pagan dos veces al mes, agrega dos ingresos: uno por cada fecha.</p><button class="btn lg" style="justify-content:center">Guardar ingreso</button></form></dialog>{% endblock %}

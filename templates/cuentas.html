@@ -20,10 +20,10 @@
 {% else %}<div class="card empty">{{ico('wallet',32)}}<div style="margin-bottom:10px">Aún no tienes cuentas. Se crean solas al subir un extracto, o agrégalas aquí.</div><button onclick="abrirCuenta()">Agregar una cuenta</button></div>{% endfor %}</div>
 <dialog id="dcuenta"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px" id="dc-t">Nueva cuenta</h2><button class="ghost" type="button" onclick="dcuenta.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
 <form class="frm" method="post" id="dc-f" action="/cuentas">
-<label class="f">Nombre de la cuenta<input name="nombre" id="dc-n" placeholder="Nu, Bancolombia Ahorros…" required list="dc-ent"></label>
-<div class="frm row2"><label class="f">Entidad<input name="entidad" id="dc-e" placeholder="Nu, Nequi…" list="dc-ent"></label>
+<label class="f">Nombre de la cuenta<input name="nombre" id="dc-n" placeholder="Nu, Bancolombia Ahorros…" required autocomplete="off"></label>
+<div class="frm row2"><label class="f">Entidad<select id="dc-es" onchange="entidad()"><option>Nu</option><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Davivienda</option><option>BBVA</option><option>Banco de Bogotá</option><option value="__otra__">Otra…</option></select></label>
 <label class="f">Últimos 4 dígitos<input name="ultimos4" id="dc-4" inputmode="numeric" maxlength="4" placeholder="Opcional"></label></div>
-<datalist id="dc-ent"><option>Nu</option><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Davivienda</option><option>BBVA</option><option>Banco de Bogotá</option></datalist>
+<label class="f" id="dc-ew" style="display:none">Nombre de la entidad<input name="entidad" id="dc-e" placeholder="Mi banco" autocomplete="off"></label>
 <label class="f">Tipo<select name="tipo" id="dc-t2"><option value="ahorros">Cuenta de ahorros</option><option value="corriente">Cuenta corriente</option><option value="bajo_monto">Depósito de bajo monto</option><option value="tarjeta">Tarjeta de crédito</option></select></label>
 <label class="f" id="dc-mw"><span id="dc-ml">Cuota de manejo al mes</span><input name="cuota_manejo" id="dc-m" inputmode="decimal" placeholder="$ 0"><span style="font-weight:500" id="dc-mh">Si no tiene, déjalo vacío.</span></label>
 <label class="f" id="dc-cw">¿Cuándo se cobra?<select name="manejo_cond" id="dc-cond"><option value="siempre">Todos los meses</option><option value="sin_uso">Solo si no uso la tarjeta en el ciclo (si la uso, es $0)</option></select></label>
@@ -32,6 +32,8 @@
 <button style="justify-content:center" id="dc-b">Guardar cuenta</button></form></dialog>
 <script>
 const $=id=>document.getElementById(id);
+const ENTS=["Nu","Nequi","Daviplata","Bancolombia","Davivienda","BBVA","Banco de Bogotá"];
+function entidad(){const v=$("dc-es").value,otra=v==="__otra__";$("dc-ew").style.display=otra?"":"none";if(!otra){$("dc-e").value=v;if(!$("dc-n").value||ENTS.includes($("dc-n").value))$("dc-n").value=v;}else{$("dc-e").value="";}}
 function formCuenta(){const tipo=$("dc-t2").value,tj=tipo==="tarjeta",bm=tipo==="bajo_monto";
  $("dc-xw").style.display=tj?"none":"";                       // la tarjeta no paga 4x1000 por sí misma
  $("dc-mw").style.display=(bm&&!$("dc-m").value)?"none":"";    // los depósitos de bajo monto normalmente no tienen cuota de manejo
@@ -40,9 +42,9 @@ function formCuenta(){const tipo=$("dc-t2").value,tj=tipo==="tarjeta",bm=tipo===
  $("dc-mh").textContent=tj?"Es lo que te cobra el banco por tener la tarjeta. Si no tiene, déjalo vacío.":"Solo si tu banco te cobra una por la cuenta. Si no, déjalo vacío.";}
 function abrirCuenta(c){
  const f=$("dc-f");
- if(c){f.action="/cuentas/"+c.id;$("dc-t").textContent="Editar cuenta";$("dc-n").value=c.nombre;$("dc-e").value=c.entidad||"";$("dc-4").value=c.ultimos4||"";
+ if(c){f.action="/cuentas/"+c.id;$("dc-t").textContent="Editar cuenta";$("dc-n").value=c.nombre;{const e=c.entidad||"";$("dc-es").value=ENTS.includes(e)?e:"__otra__";$("dc-e").value=e;$("dc-ew").style.display=ENTS.includes(e)?"none":"";}$("dc-4").value=c.ultimos4||"";
   $("dc-t2").value=c.tipo;$("dc-x").checked=!!c.exenta;$("dc-m").value=c.manejo?String(c.manejo).replace(".",","):"";$("dc-cond").value=c.cond||"siempre";$("dc-p").style.display="none";f.dataset.editando="1";}
- else{f.reset();f.action="/cuentas";$("dc-t").textContent="Nueva cuenta";$("dc-p").style.display="";f.dataset.editando="";}
+ else{f.reset();f.action="/cuentas";$("dc-es").value="Nu";$("dc-e").value="Nu";$("dc-ew").style.display="none";$("dc-t").textContent="Nueva cuenta";$("dc-p").style.display="";f.dataset.editando="";}
  formCuenta();$("dcuenta").showModal();}
 document.addEventListener("change",e=>{if(e.target.id==="dc-t2"){if(!$("dc-f").dataset.editando)$("dc-x").checked=(e.target.value==="bajo_monto");formCuenta()}});
 </script>{% endblock %}

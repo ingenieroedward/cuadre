@@ -274,6 +274,27 @@ def user(request: Request):
     return u
 
 
+def lista_cuentas(c):
+    """Una opción por cuenta Y por dueño: 'Nequi · Edward', 'Nequi · Vanesa'. El valor es 'id_usuario|nombre'."""
+    out = []
+    for u_ in c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall():
+        out.append({"v": f"{u_['id']}|Efectivo", "label": f"Efectivo · {u_['nombre']}", "user_id": u_["id"], "nombre": "Efectivo",
+                    "efectivo": True, "tarjeta": False})
+        for q in c.execute("SELECT nombre,tipo FROM cuentas WHERE user_id=? AND activa=1 ORDER BY nombre", (u_["id"],)).fetchall():
+            out.append({"v": f"{u_['id']}|{q['nombre']}", "label": f"{q['nombre']} · {u_['nombre']}", "user_id": u_["id"], "nombre": q["nombre"],
+                        "efectivo": False, "tarjeta": q["tipo"] == "tarjeta"})
+    return out
+
+
+def parse_cuenta(v, user_defecto=0):
+    """'3|Nequi' -> (3, 'Nequi')"""
+    try:
+        uid, nombre = (v or "").split("|", 1)
+        return int(uid), nombre
+    except ValueError:
+        return user_defecto, ""
+
+
 def render(request, name, **ctx):
     ctx.setdefault("u", None)
     ctx.setdefault("msg", request.query_params.get("msg"))
@@ -286,8 +307,12 @@ def render(request, name, **ctx):
         ctx["n_revisar"] = c.execute("SELECT COUNT(*) n FROM capturas WHERE estado='por_revisar'").fetchone()["n"]
         ctx.setdefault("pre", {})
         ctx["cuentas_n"] = cuentas.nombres(c, BANCOS)
-        c.close()
         ctx["medios"] = ["Efectivo"] + ctx["cuentas_n"]
+        todas_c = lista_cuentas(c)
+        ctx["cuentas_op_t"] = todas_c                                         # con tarjetas (para anotar compras)
+        ctx["cuentas_op"] = [x for x in todas_c if not x["tarjeta"]]          # cuentas y efectivo
+        ctx["cuentas_ext"] = [x for x in todas_c if not x["tarjeta"] and not x["efectivo"]]   # para subir extractos
+        c.close()
         ctx["cats_q"] = CATEGORIAS
         ctx["hoy_iso"] = avisos.ahora().date().isoformat()
     return tpl.TemplateResponse(request, name, ctx)
@@ -546,11 +571,15 @@ def subir_form(request: Request):
 
 
 @app.post("/subir")
-async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile] = File(...), persona: int = Form(...),
-                banco: str = Form("Nu"), banco_nueva: str = Form(""), tipo: str = Form("cuenta"), clave: str = Form("")):
+async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile] = File(...), persona: int = Form(0),
+                banco: str = Form("Nu"), banco_nueva: str = Form(""), tipo: str = Form("cuenta"), clave: str = Form(""),
+                cuenta: str = Form("")):
     u = user(request)
-    if banco == "__nueva__":
+    if cuenta and cuenta != "__nueva__":
+        persona, banco = parse_cuenta(cuenta, u["id"])
+    elif cuenta == "__nueva__" or banco == "__nueva__":
         banco = banco_nueva
+    persona = persona or u["id"]
     c = db()
     reglas = [(r["kw"], r["categoria"]) for r in c.execute("SELECT kw,categoria FROM reglas")]
     banco = banco.strip() or "Nu"
@@ -889,8 +918,10 @@ def rapido(request: Request, monto: str = "", desc: str = "", tipo: str = "gasto
 @app.post("/movimientos/rapido")
 def guardar_rapido(request: Request, bg: BackgroundTasks, tipo: str = Form("gasto"), monto: str = Form(...),
                    descripcion: str = Form(""), categoria: str = Form("Auto"), medio: str = Form("Efectivo"),
-                   fecha: str = Form(""), persona: int = Form(0)):
+                   fecha: str = Form(""), persona: int = Form(0), cuenta: str = Form("")):
     u = user(request)
+    if cuenta:
+        persona, medio = parse_cuenta(cuenta, u["id"])
     try:
         valor = abs(captura.numero_es(monto))
     except ValueError:
@@ -1034,9 +1065,14 @@ def descartar_captura(request: Request, cid: int):
 
 # ---------- Saldos ----------
 @app.post("/saldos/ajustar")
-def ajustar_saldo(request: Request, banco: str = Form(...), persona: int = Form(...), valor: str = Form(""), ea_cajitas: str = Form(""),
-                  en_cajitas: str = Form("")):
-    user(request)
+def ajustar_saldo(request: Request, banco: str = Form(""), persona: int = Form(0), valor: str = Form(""), ea_cajitas: str = Form(""),
+                  en_cajitas: str = Form(""), cuenta: str = Form("")):
+    u_ = user(request)
+    if cuenta:
+        persona, banco = parse_cuenta(cuenta, u_["id"])
+    persona = persona or u_["id"]
+    if not banco:
+        return volver(request, "/", err="Elige la cuenta")
     c = db()
     if en_cajitas.strip():
         try:
@@ -1530,8 +1566,10 @@ def pagina_ingresos(request: Request):
 
 @app.post("/ingresos")
 def crear_ingreso(request: Request, nombre: str = Form(...), monto: str = Form(...), dia: int = Form(...), banco: str = Form("Nu"),
-                  persona: int = Form(0)):
+                  persona: int = Form(0), cuenta: str = Form("")):
     u = user(request)
+    if cuenta:
+        persona, banco = parse_cuenta(cuenta, u["id"])
     try:
         v = abs(captura.numero_es(monto))
     except ValueError:

@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#7a1fd6"><link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" href="/static/icon-192.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<script src="/static/theme.js"></script><link rel="stylesheet" href="/static/style.css?v=42"></head><body class="{{'app' if u}}">
+<script src="/static/theme.js"></script><link rel="stylesheet" href="/static/style.css?v=43"></head><body class="{{'app' if u}}">
 {% if u %}{% set p=request.url.path %}
 <aside class="side"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a>
 <nav>
@@ -37,17 +37,17 @@
 <form class="frm" method="post" action="/movimientos/rapido">
 <div class="tipo t3"><label><input type="radio" name="tipo" value="gasto" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo not in ('ingreso','retiro')}}>Gasto</label><label class="in"><input type="radio" name="tipo" value="ingreso" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo=='ingreso'}}>Ingreso</label><label class="ret"><input type="radio" name="tipo" value="retiro" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo=='retiro'}}>Retiro</label></div>
 <input id="rp-monto" class="monto" name="monto" inputmode="decimal" placeholder="$ 0" value="{{pre.monto or ''}}" required autocomplete="off">
-<label class="f" id="rp-desc"><span>En qué</span><input name="descripcion" list="rp-rec" placeholder="Mercado, taxi, arriendo…" value="{{pre.desc or ''}}" autocomplete="off"></label>
-<datalist id="rp-rec">{% for d in recientes %}<option value="{{d}}">{% endfor %}</datalist>
-<div class="frm row"><label class="f"><span id="rp-medio-l">Con qué pagaste</span><select name="medio">{% for x in medios %}<option {{'selected' if x==pre.medio}}>{{x}}</option>{% endfor %}</select></label>
-<label class="f">Categoría<select name="categoria"><option>Auto</option>{% for x in cats_q %}<option>{{x}}</option>{% endfor %}</select></label></div>
-<div class="frm row"><label class="f">Fecha<input type="date" name="fecha" value="{{hoy_iso}}"></label>
-<label class="f">De quién<select name="persona">{% for x in usuarios %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label></div>
+<label class="f" id="rp-desc"><span>En qué</span><input name="descripcion" id="rp-d" placeholder="Mercado, taxi, arriendo…" value="{{pre.desc or ''}}" autocomplete="off"></label>
+{% if recientes %}<div id="rp-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:-4px">{% for d in recientes[:6] %}<button type="button" class="pill" style="border:0;cursor:pointer" onclick="document.getElementById('rp-d').value=this.textContent">{{d}}</button>{% endfor %}</div>{% endif %}
+<label class="f"><span id="rp-medio-l">Con qué pagaste</span><select name="cuenta" id="rp-cuenta">{% for x in cuentas_op_t %}<option value="{{x.v}}" data-u="{{x.user_id}}" data-ef="{{1 if x.efectivo else 0}}" {{'selected' if (pre.medio and x.nombre==pre.medio and x.user_id==u.id) or (not pre.medio and x.efectivo and x.user_id==u.id)}}>{{x.label}}</option>{% endfor %}</select></label>
+<label class="f">Categoría<select name="categoria"><option>Auto</option>{% for x in cats_q %}<option>{{x}}</option>{% endfor %}</select></label>
+<div class="frm row"><label class="f">Fecha<input type="date" name="fecha" value="{{hoy_iso}}"></label></div>
 <p class="sub" id="rp-nota">Si eliges un banco, queda como pendiente y el extracto lo confirma solo. Efectivo queda confirmado.</p>
 <button class="lg btn" style="justify-content:center">Guardar</button></form></dialog>
 <script>function tipoRapido(t){var r=t==="retiro";document.getElementById("rp-medio-l").textContent=r?"Lo sacaste de":"Con qué pagaste";
 document.getElementById("rp-desc").style.display=r?"none":"";document.getElementById("rp-nota").textContent=r?"Se descuenta de ese banco y se suma a tu efectivo. No cuenta como gasto: el gasto se anota cuando pagas con ese efectivo.":"Si eliges un banco, queda como pendiente y el extracto lo confirma solo. Efectivo queda confirmado.";
-var s=document.querySelector('#rapido select[name=medio]');if(r&&s.value==="Efectivo")s.value="Nu";}</script>
+var s=document.getElementById("rp-cuenta"),o=s.selectedOptions[0];
+if(r&&o&&o.dataset.ef==="1"){var otra=[].find.call(s.options,function(x){return x.dataset.u===o.dataset.u&&x.dataset.ef!=="1"});if(otra)s.value=otra.value;}}</script>
 {% if abrir %}<script>document.addEventListener("DOMContentLoaded",()=>{rapido.showModal();document.getElementById("rp-monto").focus();rapido.addEventListener("close",()=>location.href="/")})</script>{% endif %}
 {% else %}<button class="th float" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button>{% endif %}
 <main class="main" {% if not u %}style="max-width:none;padding:0"{% endif %}>

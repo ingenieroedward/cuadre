@@ -4,11 +4,10 @@
 <form class="card" method="post" enctype="multipart/form-data"><label class="drop" id="drop">{{ico('upload',34)}}<b>Elige tus extractos en PDF</b><span class="sub" id="nom">o arrástralos aquí</span>
 <input type="file" name="archivos" accept=".pdf" multiple required onchange="nom.textContent=this.files.length+(this.files.length==1?' archivo seleccionado: '+this.files[0].name:' archivos seleccionados')"></label>
 <div class="frm row" style="margin-top:16px">
-<label class="f">De quién<select name="persona" id="cu-per" onchange="cuFiltrar()">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
-<label class="f">Cuenta<select name="banco" id="cu-sel" onchange="cuNueva()">
-{% for uid,nom in pares %}<option value="{{nom}}" data-u="{{uid}}">{{nom}}</option>{% endfor %}
-{% if not pares %}{% for b in bancos %}<option value="{{b}}" data-u="0">{{b}}</option>{% endfor %}{% endif %}
-<option value="__nueva__" data-u="*">+ Otra cuenta…</option></select></label>
+<label class="f">Cuenta<select name="cuenta" id="cu-sel" onchange="cuNueva()">
+{% for x in cuentas_ext %}<option value="{{x.v}}" {{'selected' if x.user_id==u.id and loop.first}}>{{x.label}}</option>{% endfor %}
+<option value="__nueva__">+ Otra cuenta…</option></select></label>
+<label class="f" id="cu-nueva-p" style="display:none">De quién<select name="persona">{% for x in users %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
 <label class="f" id="cu-nueva" style="display:none">Nombre de la cuenta<input name="banco_nueva" placeholder="Bancolombia Ahorros…"></label>
 <label class="f">Tipo (se detecta solo)<select name="tipo"><option value="cuenta">Cuenta</option><option value="tarjeta">Tarjeta</option></select></label>
 <label class="f">Clave del PDF (tu cédula)<input name="clave" type="password" autocomplete="off" placeholder="Solo para abrirlo"></label></div>
@@ -31,11 +30,7 @@
 <div class="step"><b class="k">2</b><div><b>Súbelo aquí</b><div class="sub">Con tu cédula como clave si el PDF la pide. Puedes subir varios.</div></div></div>
 <div class="step"><b class="k">3</b><div><b>Revisa</b><div class="sub">Corrige categorías si hace falta. Subir dos veces el mismo extracto no duplica nada.</div></div></div></div></div></div>
 <script>
-function cuFiltrar(){const p=document.getElementById("cu-per").value,s=document.getElementById("cu-sel");let hay=false,primera=null;
- [...s.options].forEach(o=>{const u=o.dataset.u,ver=(u==="*"||u==="0"||u===p);o.hidden=!ver;o.disabled=!ver;if(ver&&u!=="*"&&!primera)primera=o;if(ver&&u!=="*")hay=true});
- if(s.selectedOptions[0]&&s.selectedOptions[0].disabled)s.value=primera?primera.value:"__nueva__";cuNueva()}
-function cuNueva(){document.getElementById("cu-nueva").style.display=document.getElementById("cu-sel").value==="__nueva__"?"":"none"}
-document.addEventListener("DOMContentLoaded",cuFiltrar);
+function cuNueva(){const n=document.getElementById("cu-sel").value==="__nueva__";document.getElementById("cu-nueva").style.display=n?"":"none";document.getElementById("cu-nueva-p").style.display=n?"":"none"}
 const d=document.getElementById("drop");["dragenter","dragover"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.add("on")}));
 ["dragleave","drop"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.remove("on")}));
 d.addEventListener("drop",x=>{const i=d.querySelector("input");i.files=x.dataTransfer.files;i.dispatchEvent(new Event("change"))});</script>{% endblock %}

@@ -21,7 +21,7 @@
 <div class="frm row2"><label class="f"><span id="dm-l">Aporte del mes</span><input name="objetivo" inputmode="decimal" placeholder="$ 300.000" required></label>
 <label class="f" id="dm-f" style="display:none">Fecha límite (opcional)<input type="date" name="fecha_limite"></label></div>
 <div class="frm row2"><label class="f">Bono de tasa si la cumples (puntos E.A.)<input name="bono_ea" inputmode="decimal" placeholder="0,5 en Nu"></label>
-<label class="f">Cuenta (opcional)<input name="banco" placeholder="Nu"></label></div>
+<label class="f">Cuenta (opcional)<select name="banco"><option value="">Ninguna</option>{% for n in cuentas_n %}<option>{{n}}</option>{% endfor %}</select></label></div>
 <label class="f">De quién<select name="persona">{% for x in usuarios_m %}<option value="{{x.id}}" {{'selected' if x.id==u.id}}>{{x.nombre}}</option>{% endfor %}</select></label>
 <p class="sub">Las metas mensuales empiezan de cero cada mes y te avisamos cuando falten pocos días y todavía no las hayas cumplido.</p>
 <button class="btn lg" style="justify-content:center">Guardar meta</button></form></dialog>
