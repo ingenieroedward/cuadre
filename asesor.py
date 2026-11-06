@@ -168,6 +168,33 @@ def consultar(mensajes, effort="medium", max_tokens=4000):
     return texto, aviso, tok
 
 
+PROMPT_FACTURA = """Lee esta foto de una factura, recibo o tiquete de compra en Colombia y responde SOLO con un JSON, sin texto extra:
+{"es_factura": true|false, "comercio": "nombre corto del comercio", "fecha": "YYYY-MM-DD" o null, "total": número en pesos sin puntos ni símbolos (el TOTAL A PAGAR, no subtotales ni IVA),
+"categoria": una de [%s], "medio": "efectivo"|"tarjeta"|"transferencia"|"desconocido", "items": [{"nombre": "...", "valor": número}] (máximo 8, los más caros)}
+Si la imagen no es una factura legible, pon es_factura=false y total=0. Si no ves la fecha, usa null. No inventes valores."""
+
+
+def leer_factura(imagen_b64, media_type, categorias):
+    """Foto de una factura -> datos del gasto (para que la persona los confirme). Devuelve (dict, (tokens_in, tokens_out))."""
+    import json as _json
+    import anthropic
+    cliente = anthropic.Anthropic(timeout=60.0, max_retries=2)
+    r = cliente.messages.create(
+        model=MODELO, max_tokens=900,
+        messages=[{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": imagen_b64}},
+            {"type": "text", "text": PROMPT_FACTURA % ", ".join(categorias)}]}],
+        output_config={"effort": "low"})
+    uso = getattr(r, "usage", None)
+    tok = (int(getattr(uso, "input_tokens", 0) or 0), int(getattr(uso, "output_tokens", 0) or 0))
+    texto = next((b.text for b in r.content if b.type == "text"), "")
+    m = re.search(r"\{.*\}", texto, re.S)
+    try:
+        return _json.loads(m[0]) if m else {}, tok
+    except ValueError:
+        return {}, tok
+
+
 def costo_usd(tin, tout):
     """Precio de Haiku 5.5: US$0,10 por millón de tokens de entrada y US$0,50 de salida (prompts de hasta 100 mil tokens)."""
     return tin * 0.10 / 1e6 + tout * 0.50 / 1e6

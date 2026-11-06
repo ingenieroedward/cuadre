@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#7a1fd6"><link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" href="/static/icon-192.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<script src="/static/theme.js"></script><script>try{if(sessionStorage.getItem("pl"))document.documentElement.classList.add("nopl")}catch(e){}</script><link rel="stylesheet" href="/static/style.css?v=60"></head><body class="{{'app' if u}}">
+<script src="/static/theme.js"></script><script>try{if(sessionStorage.getItem("pl"))document.documentElement.classList.add("nopl")}catch(e){}</script><link rel="stylesheet" href="/static/style.css?v=61"></head><body class="{{'app' if u}}">
 <div id="pl" aria-hidden="true"><div class="pl-in"><svg width="84" height="84" viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-linecap="round"><path class="pl-c" d="M43.6 17.9A18 18 0 1 0 43.6 46.1" stroke-width="7.5"/><path class="pl-b b1" d="M27 41v-5" stroke-width="4.6"/><path class="pl-b b2" d="M33 41v-10" stroke-width="4.6"/><path class="pl-b b3" d="M39 41V25" stroke-width="4.6"/></svg><div class="pl-t">Cuadre</div><div class="pl-s">Las cuentas de la familia, claras</div></div></div><div id="nprog"></div>
 {% if u %}{% set p=request.url.path %}
 <aside class="side"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a>
@@ -36,7 +36,8 @@
 <button class="btn fab" onclick="rapido.showModal();document.getElementById('rp-monto').focus()" title="Anotar un movimiento" aria-label="Anotar un movimiento">{{ico('plus',24)}}<span>Anotar</span></button>
 <dialog id="rapido"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="font-size:18px">Anotar un movimiento</h2><button class="ghost" onclick="rapido.close()" type="button" aria-label="Cerrar">{{ico('x',20)}}</button></div>
 <form class="frm" method="post" action="/movimientos/rapido">
-<button type="button" id="rp-mic" class="mic" onclick="vozRapido()">{{ico('mic',20)}}<span id="rp-mic-t">Dilo en voz alta</span></button><div class="sub" id="rp-oyo" style="display:none;margin-top:-4px"></div>
+<div class="mic-row"><button type="button" id="rp-mic" class="mic" onclick="vozRapido()">{{ico('mic',20)}}<span id="rp-mic-t">Voz</span></button>
+<label class="mic" id="rp-foto-b">{{ico('camera',20)}}<span id="rp-foto-t">Foto de factura</span><input type="file" id="rp-foto" accept="image/*" hidden onchange="fotoRapida(this)"></label></div><div class="sub" id="rp-oyo" style="display:none;margin-top:-4px"></div>
 <div class="tipo t3"><label><input type="radio" name="tipo" value="gasto" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo not in ('ingreso','retiro')}}>Gasto</label><label class="in"><input type="radio" name="tipo" value="ingreso" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo=='ingreso'}}>Ingreso</label><label class="ret"><input type="radio" name="tipo" value="traslado" onchange="tipoRapido(this.value)" {{'checked' if pre.tipo in ('traslado','retiro')}}>Traslado</label></div>
 <input id="rp-monto" oninput="gmfRapido()" class="monto" name="monto" inputmode="decimal" placeholder="$ 0" value="{{pre.monto or ''}}" required autocomplete="off">
 <label class="f" id="rp-desc"><span>En qué</span><input name="descripcion" id="rp-d" placeholder="Mercado, taxi, arriendo…" value="{{pre.desc or ''}}" autocomplete="off"></label>
@@ -61,8 +62,25 @@ if(d.destino){var dd=document.getElementById('rp-destino');var mm=[].find.call(d
 if(d.fecha)document.querySelector('input[name="fecha"]').value=d.fecha;
 nota("Escuché: «"+txt+"». Revisa y toca Guardar.")}).catch(function(){nota("No pude interpretarlo, escríbelo.")})};
 r.onerror=function(e){nota(e.error==="not-allowed"?"Permite el micrófono para dictar.":"No te escuché, intenta de nuevo.")};
-r.onend=function(){b.classList.remove("on");t.textContent="Dilo en voz alta"};
+r.onend=function(){b.classList.remove("on");t.textContent="Voz"};
 try{r.start()}catch(_){}}
+function fotoRapida(inp){var f=inp.files&&inp.files[0],o=document.getElementById("rp-oyo"),b=document.getElementById("rp-foto-b"),t=document.getElementById("rp-foto-t");if(!f)return;
+function nota(x){o.style.display="";o.textContent=x}
+b.classList.add("on");t.textContent="Leyendo…";nota("Leyendo la factura, unos segundos…");
+var img=new Image(),u=URL.createObjectURL(f);
+img.onload=function(){var m=1400,k=Math.min(1,m/Math.max(img.width,img.height)),c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);
+c.toBlob(function(bl){var fd=new FormData();fd.append("foto",bl,"factura.jpg");
+fetch("/factura",{method:"POST",body:fd,credentials:"same-origin"}).then(function(x){return x.json()}).then(function(d){
+b.classList.remove("on");t.textContent="Foto de factura";inp.value="";
+if(d.error){nota(d.error);return}
+var g=document.querySelector('input[name="tipo"][value="gasto"]');if(g){g.checked=true;tipoRapido("gasto")}
+document.getElementById("rp-monto").value=d.total;gmfRapido();document.getElementById("rp-d").value=d.comercio||"";
+if(d.categoria){var cs=document.querySelector('select[name="categoria"]');if(cs)cs.value=d.categoria}
+if(d.fecha)document.querySelector('input[name="fecha"]').value=d.fecha;
+if(d.medio==="efectivo"){var s=document.getElementById("rp-cuenta"),ef=[].find.call(s.options,function(x){return x.dataset.ef==="1"&&x.dataset.u===s.selectedOptions[0].dataset.u});if(ef)s.value=ef.value}
+nota("Leí: "+(d.comercio||"factura")+" · $"+Number(d.total).toLocaleString("es-CO")+(d.items&&d.items.length?" ("+d.items.slice(0,3).map(function(i){return i.nombre}).join(", ")+(d.items.length>3?"…":"")+")":"")+". Revisa y toca Guardar.")
+}).catch(function(){b.classList.remove("on");t.textContent="Foto de factura";nota("No pude leer la foto, escríbelo.")})},"image/jpeg",0.82)};
+img.onerror=function(){b.classList.remove("on");t.textContent="Foto de factura";nota("No pude abrir esa foto.")};img.src=u}
 function gmfRapido(){var s=document.getElementById('rp-cuenta'),o=s.selectedOptions[0],v=parseFloat((document.getElementById('rp-monto').value||'').replace(/\./g,'').replace(',','.'))||0,n=document.getElementById('rp-gmf');if(!o||o.dataset.gmf!=='1'){n.style.display='none';return}n.style.display='';n.textContent='Esta cuenta paga 4x1000: '+(v?'sobre $'+v.toLocaleString('es-CO')+' se descuentan ≈ $'+(v*0.004).toLocaleString('es-CO',{maximumFractionDigits:0})+' más.':'se descuenta 0,4% de lo que sale.')}
 function tipoRapido(t){var r=t==="traslado";document.getElementById("rp-medio-l").textContent=r?"Desde":"Con qué pagaste";
 document.getElementById("rp-desc").style.display=r?"none":"";var ch=document.getElementById("rp-chips");if(ch)ch.style.display=r?"none":"";

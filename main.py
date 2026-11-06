@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import json
 import calendar
 import csv
 import hashlib
@@ -13,6 +15,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1025,6 +1028,46 @@ def pk_borrar(request: Request, pid: int):
 def rapido(request: Request, monto: str = "", desc: str = "", tipo: str = "gasto", medio: str = ""):
     u = user(request)
     return render(request, "rapido.html", u=u, pre={"monto": monto, "desc": desc, "tipo": tipo, "medio": medio}, abrir=True)
+
+
+@app.post("/factura")
+async def leer_foto_factura(request: Request, foto: UploadFile = File(...)):
+    """Foto de factura -> datos del gasto para confirmar. No guarda nada."""
+    u = user(request)
+    if not asesor.hay_clave():
+        return JSONResponse({"error": "Falta la clave de Anthropic (ANTHROPIC_API_KEY) en el servidor para leer fotos."})
+    datos = await foto.read()
+    if not datos or len(datos) > 6 * 1024 * 1024:
+        return JSONResponse({"error": "La foto es muy pesada o está vacía. Prueba con otra."})
+    tipo = foto.content_type if foto.content_type in ("image/jpeg", "image/png", "image/webp") else "image/jpeg"
+    c = db()
+    if asesor.usos_hoy(c, u["id"]) >= asesor.MAX_DIA:
+        c.close()
+        return JSONResponse({"error": f"Llegaste al límite de {asesor.MAX_DIA} consultas de IA de hoy."})
+    try:
+        d, tok = await run_in_threadpool(asesor.leer_factura, base64.b64encode(datos).decode(), tipo, CATEGORIAS)
+    except Exception as e:
+        c.close()
+        return JSONResponse({"error": f"No pude leer la foto ({type(e).__name__}). Intenta de nuevo o escríbelo."})
+    _guardar_hist(c, u["id"], "factura", "foto de factura", json.dumps(d, ensure_ascii=False)[:1500], "", tok)
+    c.close()
+    try:
+        total = abs(float(d.get("total") or 0))
+    except (TypeError, ValueError):
+        total = 0.0
+    if not d.get("es_factura") or total <= 0:
+        return JSONResponse({"error": "No pude ver el total en la foto. Toma la foto más cerca y con buena luz, o escríbelo."})
+    hoy = date.today()
+    try:
+        f = date.fromisoformat(str(d.get("fecha")))
+        if f > hoy or (hoy - f).days > 400:
+            f = hoy
+    except ValueError:
+        f = hoy
+    cat = d.get("categoria") if d.get("categoria") in CATEGORIAS else ""
+    items = [{"nombre": str(i.get("nombre", ""))[:40], "valor": i.get("valor")} for i in (d.get("items") or [])[:8] if isinstance(i, dict)]
+    return JSONResponse({"comercio": str(d.get("comercio") or "")[:60], "fecha": f.isoformat(), "total": total, "categoria": cat,
+                         "medio": d.get("medio") or "desconocido", "items": items})
 
 
 @app.post("/voz")
