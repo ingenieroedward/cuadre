@@ -73,13 +73,14 @@ img.onload=function(){var m=1400,k=Math.min(1,m/Math.max(img.width,img.height)),
 c.toBlob(function(bl){var fd=new FormData();fd.append("foto",bl,"factura.jpg");
 fetch("/factura",{method:"POST",body:fd,credentials:"same-origin"}).then(function(x){return x.json()}).then(function(d){
 b.classList.remove("on");t.textContent="Foto de factura";inp.value="";
-if(d.error){nota(d.error);return}
-var g=document.querySelector('input[name="tipo"][value="gasto"]');if(g){g.checked=true;tipoRapido("gasto")}
+if(d.error){nota(d.error+(d.visto?" (Vi: "+d.visto+")":""));return}
+var tp=d.propio?"traslado":(d.tipo==="ingreso"?"ingreso":"gasto"),g=document.querySelector('input[name="tipo"][value="'+tp+'"]');if(g){g.checked=true;tipoRapido(tp)}
 setMonto(d.total);gmfRapido();document.getElementById("rp-d").value=d.comercio||"";
-if(d.categoria){var cs=document.querySelector('select[name="categoria"]');if(cs)cs.value=d.categoria}
+if(d.categoria&&tp!=="traslado"){var cs=document.querySelector('select[name="categoria"]');if(cs)cs.value=d.categoria}
 if(d.fecha)document.querySelector('input[name="fecha"]').value=d.fecha;
-if(d.medio==="efectivo"){var s=document.getElementById("rp-cuenta"),ef=[].find.call(s.options,function(x){return x.dataset.ef==="1"&&x.dataset.u===s.selectedOptions[0].dataset.u});if(ef)s.value=ef.value}
-nota("Leí: "+(d.comercio||"factura")+" · $"+Number(d.total).toLocaleString("es-CO")+(d.items&&d.items.length?" ("+d.items.slice(0,3).map(function(i){return i.nombre}).join(", ")+(d.items.length>3?"…":"")+")":"")+". Revisa y toca Guardar.")
+var mk={efectivo:"Efectivo",nequi:"Nequi",nu:"Nu",daviplata:"Daviplata",bancolombia:"Bancolombia",davivienda:"Davivienda",tarjeta:"Tarjeta"}[d.medio];
+if(mk){var s=document.getElementById("rp-cuenta"),u0=s.selectedOptions[0].dataset.u,mo=[].find.call(s.options,function(x){return x.dataset.u===u0&&x.text.indexOf(mk)===0});if(mo){s.value=mo.value;gmfRapido();if(tp==="traslado")tipoRapido("traslado")}}
+nota((d.propio?"Parece un traslado entre ustedes: elige la cuenta Hacia. ":"")+"Leí: "+(d.tipo==="ingreso"?"ingreso de ":"")+(d.comercio||"factura")+" · $"+Number(d.total).toLocaleString("es-CO")+(d.items&&d.items.length?" ("+d.items.slice(0,3).map(function(i){return i.nombre}).join(", ")+(d.items.length>3?"…":"")+")":"")+". Revisa y toca Guardar.")
 }).catch(function(){b.classList.remove("on");t.textContent="Foto de factura";nota("No pude leer la foto, escríbelo.")})},"image/jpeg",0.82)};
 img.onerror=function(){b.classList.remove("on");t.textContent="Foto de factura";nota("No pude abrir esa foto.")};img.src=u}
 function fmtMonto(i){var p=i.value.replace(/[^\d,]/g,"").split(",");var e=p[0].replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,".");i.value=e+(p.length>1?","+p[1].slice(0,2):"")}

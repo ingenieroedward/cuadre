@@ -168,10 +168,16 @@ def consultar(mensajes, effort="medium", max_tokens=4000):
     return texto, aviso, tok
 
 
-PROMPT_FACTURA = """Lee esta foto de una factura, recibo o tiquete de compra en Colombia y responde SOLO con un JSON, sin texto extra:
-{"es_factura": true|false, "comercio": "nombre corto del comercio", "fecha": "YYYY-MM-DD" o null, "total": número en pesos sin puntos ni símbolos (el TOTAL A PAGAR, no subtotales ni IVA),
-"categoria": una de [%s], "medio": "efectivo"|"tarjeta"|"transferencia"|"desconocido", "items": [{"nombre": "...", "valor": número}] (máximo 8, los más caros)}
-Si la imagen no es una factura legible, pon es_factura=false y total=0. Si no ves la fecha, usa null. No inventes valores."""
+PROMPT_FACTURA = """Esta imagen es una factura, tiquete o recibo de compra, O un comprobante de pago/transferencia de una app o banco de Colombia (Nequi, Nu, Daviplata, Bancolombia, Davivienda, PSE, Bre-B, etc.). Responde SOLO con un JSON, sin texto extra:
+{"es_factura": true si es cualquiera de esos documentos (pon false solo si no se puede leer o no es un documento de pago),
+"tipo": "gasto" si la persona pagó o envió plata; "ingreso" si recibió plata,
+"comercio": nombre corto del comercio, o de la persona/empresa a quien se pagó (o de quien se recibió),
+"fecha": "YYYY-MM-DD" o null,
+"total": número en pesos sin puntos, comas ni símbolos: en una factura el TOTAL A PAGAR (no subtotales ni IVA); en un comprobante el valor transferido o pagado,
+"categoria": una de [%s],
+"medio": "efectivo"|"tarjeta"|"nequi"|"nu"|"daviplata"|"bancolombia"|"davivienda"|"otro"|"desconocido" (la app o banco desde donde salió o entró el dinero, si se ve),
+"items": [{"nombre": "...", "valor": número}] (máximo 8; vacío en un comprobante)}
+Si el valor está escrito como $50.000 o $50,000.00 devuélvelo como 50000. No inventes datos que no se ven."""
 
 
 def leer_factura(imagen_b64, media_type, categorias):

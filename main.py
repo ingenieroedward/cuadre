@@ -1059,7 +1059,8 @@ async def leer_foto_factura(request: Request, foto: UploadFile = File(...)):
     except (TypeError, ValueError):
         total = 0.0
     if not d.get("es_factura") or total <= 0:
-        return JSONResponse({"error": "No pude ver el total en la foto. Toma la foto más cerca y con buena luz, o escríbelo."})
+        return JSONResponse({"error": "No pude ver el valor en la foto. Prueba con una captura completa del comprobante o una foto más cerca y con buena luz, o escríbelo.",
+                             "visto": str(d.get("comercio") or "")[:60]})
     hoy = date.today()
     try:
         f = date.fromisoformat(str(d.get("fecha")))
@@ -1069,8 +1070,12 @@ async def leer_foto_factura(request: Request, foto: UploadFile = File(...)):
         f = hoy
     cat = d.get("categoria") if d.get("categoria") in CATEGORIAS else ""
     items = [{"nombre": str(i.get("nombre", ""))[:40], "valor": i.get("valor")} for i in (d.get("items") or [])[:8] if isinstance(i, dict)]
-    return JSONResponse({"comercio": str(d.get("comercio") or "")[:60], "fecha": f.isoformat(), "total": total, "categoria": cat,
-                         "medio": d.get("medio") or "desconocido", "items": items})
+    comercio = str(d.get("comercio") or "")[:60]
+    tipo_mov = "ingreso" if d.get("tipo") == "ingreso" else "gasto"
+    propio = bool(comercio) and lector.es_propio(("Recibiste de " if tipo_mov == "ingreso" else "Enviaste a ") + comercio)
+    return JSONResponse({"comercio": comercio, "fecha": f.isoformat(), "total": total, "categoria": "Traslado propio" if propio else cat,
+                         "tipo": "traslado" if propio else tipo_mov, "propio": propio,
+                         "medio": str(d.get("medio") or "desconocido").lower(), "items": items})
 
 
 @app.post("/voz")
