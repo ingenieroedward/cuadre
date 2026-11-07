@@ -7,7 +7,7 @@
 {% for p in pagos %}{% if p.dias <= 7 %}<div class="card alert {{'x' if p.dias<=1}}"><div class="ic">{{ico('card',22)}}</div>
 <div class="t"><b>Tarjeta {{p.banco}} {{'vence hoy' if p.dias==0 else 'venció hace %d día(s)'|format(-p.dias) if p.dias<0 else 'vence en %d día(s)'|format(p.dias)}}</b>
 <div class="sub">Pago mínimo {{p.pago_minimo|cop}}{% if p.a_pagar %} · sin intereses {{p.a_pagar|cop}}{% endif %} · límite {{p.fecha_limite[8:]}}/{{p.fecha_limite[5:7]}} · {{p.nombre}}</div></div>
-<form method="post" action="/avisos/pago/{{p.id}}/pagado"><button class="soft">Ya pagué</button></form></div>{% endif %}{% endfor %}
+<form method="post" action="/avisos/pago/{{p.id}}/pagado" onsubmit="return confirm('¿Ya pagaste la tarjeta? Se quitará de tu agenda y de lo que tienes comprometido.')"><button class="soft">Ya pagué</button></form></div>{% endif %}{% endfor %}
 {% if libre %}<div class="card" style="{{'border-left:4px solid var(--bad)' if libre.estado=='mal' else 'border-left:4px solid var(--warn)' if libre.estado=='justo' else ''}}">
 <div class="hd" style="margin-bottom:6px"><h2>{{ico('wallet',19)}}¿Cuánto puedo gastar?</h2></div>
 {% if libre.minimo is not none and libre.minimo < 0 %}<div class="alerta-box" style="margin:0 0 10px">{{ico('alert',17)}}<div><b>Ojo con el {{libre.fecha_min.strftime('%d/%m')}}:</b> tu saldo bajaría a <b>{{libre.minimo|cop}}</b> porque un pago vence antes de que llegue tu próximo ingreso.</div></div>{% endif %}

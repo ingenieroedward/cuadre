@@ -30,7 +30,7 @@
 <div class="sub">Usas {{t.usado|cop}} de tu cupo de {{t.cupo|cop}} ({{(x.uso*100)|round|int}}%) · disponible {{(t.disponible or 0)|cop}}</div>{% endif %}
 <div class="li" style="padding:14px 0 0;border-top:0;gap:10px;flex-wrap:wrap"><div class="t" style="min-width:200px"><div class="sub">Pago mínimo <b style="color:var(--tx)">{{(t.pago_minimo or 0)|cop}}</b></div>{% if t.a_pagar %}<div class="sub">Sin pagar intereses <b style="color:var(--tx)">{{t.a_pagar|cop}}</b></div>{% endif %}</div>
 <span class="pill {{'bad' if x.dias<0 and not t.pagado else 'warn' if x.dias<=3 and not t.pagado else ''}}">{{ico('calendar',14)}} {{t.fecha_limite[8:]}}/{{t.fecha_limite[5:7]}}</span>
-<form method="post" action="/avisos/pago/{{t.id}}/pagado"><button class="{{'ghost' if t.pagado else 'soft'}}">{% if t.pagado %}{{ico('check',16)}}Pagada{% else %}Ya pagué{% endif %}</button></form></div>
+<form method="post" action="/avisos/pago/{{t.id}}/pagado" onsubmit="return confirm({{('¿Deshacer? El pago de la tarjeta volverá a contar como pendiente.' if t.pagado else '¿Ya pagaste la tarjeta? Se quitará de tu agenda y de lo que tienes comprometido.')|tojson|forceescape}})"><button class="{{'ghost' if t.pagado else 'soft'}}">{% if t.pagado %}{{ico('check',16)}}Pagada · Deshacer{% else %}Ya pagué{% endif %}</button></form></div>
 {% set f=x.ficha %}{% set cy=x.ciclo %}
 <div class="sub" style="margin-top:10px;display:flex;gap:8px;align-items:flex-start">{{ico('wallet',14)}}<span>
 {% if x.manejo and f and f.manejo_cond=='sin_uso' %}Cuota de manejo <b style="color:var(--tx)">{{x.manejo|cop}}</b> solo si no usas la tarjeta en el ciclo

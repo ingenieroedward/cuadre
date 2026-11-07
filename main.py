@@ -927,8 +927,17 @@ def borrar_presupuesto(request: Request, pid: int):
 @app.post("/avisos/pago/{pid}/pagado")
 def marcar_pagado(request: Request, pid: int):
     user(request)
-    c = db(); c.execute("UPDATE pagos_tarjeta SET pagado=1-pagado WHERE id=?", (pid,)); c.commit(); c.close()
-    return RedirectResponse("/avisos", 303)
+    c = db()
+    c.execute("UPDATE pagos_tarjeta SET pagado=1-pagado WHERE id=?", (pid,))
+    r = c.execute("SELECT pagado, banco FROM pagos_tarjeta WHERE id=?", (pid,)).fetchone()
+    c.commit(); c.close()
+    from urllib.parse import urlparse
+    destino = urlparse(request.headers.get("referer", "")).path or "/deudas"
+    if destino in ("", "/login", "/rapido") or not destino.startswith("/"):
+        destino = "/deudas"
+    if r and r["pagado"]:
+        return volver(request, destino, msg=f"Pago de la tarjeta {r['banco']} marcado como pagado. Si fue un error, toca «Deshacer»")
+    return volver(request, destino, msg="Listo: el pago volvió a quedar pendiente")
 
 
 @app.post("/avisos/config")
