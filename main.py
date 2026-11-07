@@ -311,8 +311,11 @@ def render(request, name, **ctx):
     ctx.setdefault("err", request.query_params.get("err"))
     if ctx["u"]:
         c = db()
+        # sugerencias: solo lo que la familia anotó a mano (no las líneas de los extractos)
         ctx["recientes"] = [r["descripcion"] for r in c.execute(
-            "SELECT descripcion, COUNT(*) n FROM movs WHERE monto<0 GROUP BY descripcion ORDER BY n DESC, MAX(fecha) DESC LIMIT 30")]
+            "SELECT descripcion, COUNT(*) n FROM movs WHERE monto<0 AND fuente='manual' AND categoria!='Traslado propio' GROUP BY descripcion ORDER BY n DESC, MAX(fecha) DESC LIMIT 30")]
+        ctx["recientes_ing"] = [r["descripcion"] for r in c.execute(
+            "SELECT descripcion, COUNT(*) n FROM movs WHERE monto>0 AND fuente='manual' AND categoria!='Traslado propio' GROUP BY descripcion ORDER BY n DESC, MAX(fecha) DESC LIMIT 30")]
         ctx["usuarios"] = c.execute("SELECT id,nombre FROM users ORDER BY nombre").fetchall()
         ctx["n_revisar"] = c.execute("SELECT COUNT(*) n FROM capturas WHERE estado='por_revisar'").fetchone()["n"]
         ctx.setdefault("pre", {})
