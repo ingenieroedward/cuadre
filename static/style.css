@@ -272,3 +272,6 @@ button.ocupado{opacity:.85;cursor:progress}button:disabled{cursor:not-allowed}
 @media(max-width:560px){.res-row{flex-wrap:wrap;row-gap:10px}.res-row .t{flex:1 1 calc(100% - 56px)}.res-row .n{margin-left:46px;flex:1 1 100%}.res-row .t b.nm{display:block;-webkit-line-clamp:unset;white-space:normal;overflow-wrap:anywhere}}
 
 .mic-row{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.mic-row .mic{cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:600}
+
+dialog>div:first-child{position:sticky;top:-22px;background:var(--sf);z-index:2;padding:2px 0 10px;margin-top:-2px}
+@media(max-width:560px){dialog>div:first-child{top:-16px}}
