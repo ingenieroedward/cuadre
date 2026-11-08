@@ -924,6 +924,44 @@ def borrar_presupuesto(request: Request, pid: int):
     return RedirectResponse("/avisos", 303)
 
 
+@app.post("/tarjeta/pago/{pid}")
+def registrar_pago_tarjeta(request: Request, pid: int, monto: str = Form(...), cuenta: str = Form(""), fecha: str = Form(""),
+                           anotar: str = Form("")):
+    """Registra que pagaste la tarjeta: marca el pago y, si quieres, lo anota en la cuenta de donde salió la plata."""
+    u = user(request)
+    from urllib.parse import urlparse
+    destino = urlparse(request.headers.get("referer", "")).path or "/deudas"
+    if not destino.startswith("/") or destino in ("/login", "/rapido"):
+        destino = "/deudas"
+    try:
+        valor = abs(captura.numero_es(monto))
+    except ValueError:
+        return volver(request, destino, err="Escribe el valor del pago en números")
+    if valor <= 0:
+        return volver(request, destino, err="El valor del pago debe ser mayor a cero")
+    c = db()
+    t = c.execute("SELECT * FROM pagos_tarjeta WHERE id=?", (pid,)).fetchone()
+    if not t:
+        c.close(); return volver(request, destino, err="No encontré ese pago")
+    dia = fecha if re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha or "") else date.today().isoformat()
+    if anotar and cuenta:
+        persona, banco = parse_cuenta(cuenta, u["id"])
+        cuentas.asegurar(c, persona or u["id"], banco)
+        hh = hashlib.sha256(f"pagotj{secrets.token_hex(8)}".encode()).hexdigest()
+        c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente)
+            VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], banco, dia, f"Pagaste tu tarjeta {t['banco']}", -valor, "Pago de tarjeta",
+                                             "manual", hh, "confirmado" if banco == "Efectivo" else "provisional", "manual"))
+    cubierto = valor + 0.5 >= (t["pago_minimo"] or 0)
+    if cubierto:
+        c.execute("UPDATE pagos_tarjeta SET pagado=1 WHERE id=?", (pid,))
+    c.commit(); c.close()
+    resto = (t["a_pagar"] or 0) - valor
+    msg = f"Pago de {avisos.cop(valor)} registrado" + (" y la tarjeta quedó al día" if cubierto else ". Aún no llega al pago mínimo")
+    if cubierto and resto > 0.5:
+        msg += f". Si no pagas {avisos.cop(resto)} más antes del límite, se cobran intereses"
+    return volver(request, destino, msg=msg)
+
+
 @app.post("/avisos/pago/{pid}/pagado")
 def marcar_pagado(request: Request, pid: int):
     user(request)

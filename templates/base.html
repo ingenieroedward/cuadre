@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#7a1fd6"><link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" href="/static/icon-192.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<script src="/static/theme.js"></script><script>try{if(sessionStorage.getItem("pl"))document.documentElement.classList.add("nopl")}catch(e){}</script><link rel="stylesheet" href="/static/style.css?v=63"></head><body class="{{'app' if u}}">
+<script src="/static/theme.js"></script><script>try{if(sessionStorage.getItem("pl"))document.documentElement.classList.add("nopl")}catch(e){}</script><link rel="stylesheet" href="/static/style.css?v=64"></head><body class="{{'app' if u}}">
 <div id="pl" aria-hidden="true"><div class="pl-in"><svg width="84" height="84" viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-linecap="round"><path class="pl-c" d="M43.6 17.9A18 18 0 1 0 43.6 46.1" stroke-width="7.5"/><path class="pl-b b1" d="M27 41v-5" stroke-width="4.6"/><path class="pl-b b2" d="M33 41v-10" stroke-width="4.6"/><path class="pl-b b3" d="M39 41V25" stroke-width="4.6"/></svg><div class="pl-t">Cuadre</div><div class="pl-s">Las cuentas de la familia, claras</div></div></div><div id="nprog"></div>
 {% if u %}{% set p=request.url.path %}
 <aside class="side"><a class="logo" href="/"><i>{{marca(22)}}</i>Cuadre</a>
@@ -94,6 +94,22 @@ document.getElementById("rp-nota").textContent=r?"Mueve plata entre tus cuentas 
 if(r){var s=document.getElementById("rp-cuenta"),d=document.getElementById("rp-destino"),o=s.selectedOptions[0];
 if(d.value===s.value||!d.value){var pref=[].find.call(d.options,function(x){return x.value!==s.value&&x.dataset.u===o.dataset.u&&(o.dataset.ef==="1"?x.dataset.ef!=="1":x.dataset.ef==="1")})||[].find.call(d.options,function(x){return x.value!==s.value});if(pref)d.value=pref.value;}}}
 </script>
+<dialog id="dtj"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px" id="dtj-t">Pago de la tarjeta</h2><button class="ghost" type="button" onclick="dtj.close()" aria-label="Cerrar">{{ico('x',20)}}</button></div>
+<form class="frm" method="post" id="dtj-f"><p class="sub" id="dtj-s"></p>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="pill" id="dtj-tot" style="border:0;cursor:pointer"></button><button type="button" class="pill" id="dtj-min" style="border:0;cursor:pointer"></button></div>
+<input id="dtj-m" class="monto" name="monto" inputmode="decimal" placeholder="$ 0" oninput="fmtMonto(this)" required autocomplete="off">
+<label class="f">¿De qué cuenta salió?<select name="cuenta" id="dtj-c">{% for x in cuentas_op %}<option value="{{x.v}}" {{'selected' if x.user_id==u.id and x.nombre=='Nu'}}>{{x.label}}</option>{% endfor %}</select></label>
+<label class="f">Fecha del pago<input type="date" name="fecha" id="dtj-d"></label>
+<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" name="anotar" value="1" checked style="width:auto">Anotarlo como salida de esa cuenta</label>
+<p class="sub">Si lo anotas, baja el saldo de esa cuenta y el extracto lo confirma solo cuando llegue.</p>
+<button class="btn lg" style="justify-content:center">Registrar pago</button></form></dialog>
+<script>function pagarTarjeta(id,banco,min,tot,lim){var f=document.getElementById("dtj-f");f.action="/tarjeta/pago/"+id;document.getElementById("dtj-t").textContent="Pagar la tarjeta "+banco;
+var fm=function(n){return "$"+Number(n).toLocaleString("es-CO",{maximumFractionDigits:0})};
+document.getElementById("dtj-s").textContent="Vence el "+lim.slice(8)+"/"+lim.slice(5,7)+". «Sin intereses» es lo que debes pagar para que no te cobren intereses este ciclo.";
+var a=document.getElementById("dtj-tot"),b=document.getElementById("dtj-min");a.style.display=tot?"":"none";a.textContent="Sin intereses "+fm(tot);a.onclick=function(){setMontoEn("dtj-m",tot)};
+b.style.display=min?"":"none";b.textContent="Mínimo "+fm(min);b.onclick=function(){setMontoEn("dtj-m",min)};
+setMontoEn("dtj-m",tot||min||0);document.getElementById("dtj-d").value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);dtj.showModal()}
+function setMontoEn(id,n){var i=document.getElementById(id);i.value=String(n).replace(".",",");fmtMonto(i)}</script>
 {% if abrir %}<script>document.addEventListener("DOMContentLoaded",()=>{rapido.showModal();document.getElementById("rp-monto").focus();rapido.addEventListener("close",()=>location.href="/")})</script>{% endif %}
 {% else %}<button class="th float" onclick="cambiarTema()" title="Tema: automático, claro u oscuro" type="button"><span class="a">{{ico('monitor',19)}}</span><span class="l">{{ico('sun',19)}}</span><span class="d">{{ico('moon',19)}}</span></button>{% endif %}
 <main class="main" {% if not u %}style="max-width:none;padding:0"{% endif %}>
