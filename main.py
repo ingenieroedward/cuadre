@@ -29,6 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, PublicKeyC
 
 import avisos
 import captura
+import mcp_server
 import correo
 import cuentas
 import deudas
@@ -212,7 +213,7 @@ def init():
     c.execute("""CREATE TABLE IF NOT EXISTS capturas(id INTEGER PRIMARY KEY, user_id INTEGER, fuente TEXT, texto TEXT, estado TEXT,
         monto REAL, descripcion TEXT, fecha TEXT, banco TEXT, mov_id INTEGER, creado TEXT)""")
     for tabla, col, defin in [("movs", "estado", "TEXT DEFAULT 'confirmado'"), ("movs", "fuente", "TEXT DEFAULT 'extracto'"),
-                              ("users", "token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
+                              ("users", "token", "TEXT"), ("users", "mcp_token", "TEXT"), ("deudas", "origen", "TEXT DEFAULT 'manual'"),
                               ("deudas", "cuotas_fact", "INTEGER DEFAULT 0"), ("deudas", "restante", "REAL"),
                               ("deudas", "tasa_mv", "REAL"), ("deudas", "clave_ext", "TEXT"),
                               ("asesor_hist", "firma", "TEXT"), ("asesor_hist", "tok_in", "INTEGER DEFAULT 0"), ("asesor_hist", "tok_out", "INTEGER DEFAULT 0"),
@@ -1242,18 +1243,70 @@ async def api_captura(request: Request):
     return {"ok": True, **{k: v for k, v in r.items() if k in ("estado", "tipo", "monto", "descripcion", "fecha", "banco")}}
 
 
+def mcp_token_de(c, user_id, nuevo=False):
+    """Token propio del MCP (distinto al de captura, porque da lectura de todas las finanzas). Se puede regenerar."""
+    r = c.execute("SELECT mcp_token FROM users WHERE id=?", (user_id,)).fetchone()
+    if nuevo or not (r and r["mcp_token"]):
+        t = "cmcp_" + secrets.token_urlsafe(32)
+        c.execute("UPDATE users SET mcp_token=? WHERE id=?", (t, user_id)); c.commit()
+        return t
+    return r["mcp_token"]
+
+
+@app.post("/conectar/mcp/regenerar")
+def regenerar_mcp(request: Request):
+    u = user(request)
+    c = db(); mcp_token_de(c, u["id"], nuevo=True); c.close()
+    return volver(request, "/conectar#mcp", msg="Listo: el enlace anterior dejó de funcionar")
+
+
+async def _mcp(request: Request, token: str):
+    if request.method == "GET":
+        return Response(status_code=405, headers={"Allow": "POST"})
+    c = db()
+    u = c.execute("SELECT * FROM users WHERE mcp_token=?", (token,)).fetchone() if token and token.startswith("cmcp_") else None
+    c.close()
+    if not u:
+        return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "Token inválido"}}, status_code=401,
+                            headers={"WWW-Authenticate": 'Bearer realm="cuadre"'})
+    if mcp_server.limitado(token):
+        return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32002, "message": "Demasiados pedidos, espera un minuto"}}, status_code=429)
+    try:
+        cuerpo = await request.json()
+    except ValueError:
+        return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON inválido"}}, status_code=400)
+    ayudas = {"EXC": EXC, "cargar_deudas": cargar_deudas, "cargar_tarjetas": cargar_tarjetas}
+    if isinstance(cuerpo, list):
+        resp = [r for r in (await run_in_threadpool(mcp_server.procesar, m, db, u, ayudas) for m in cuerpo) if r is not None]
+        return JSONResponse(resp) if resp else Response(status_code=202)
+    r = await run_in_threadpool(mcp_server.procesar, cuerpo, db, u, ayudas)
+    return JSONResponse(r) if r is not None else Response(status_code=202)
+
+
+@app.api_route("/mcp", methods=["GET", "POST"])
+async def mcp_cabecera(request: Request):
+    auth = request.headers.get("authorization", "")
+    return await _mcp(request, auth[7:].strip() if auth.lower().startswith("bearer ") else "")
+
+
+@app.api_route("/mcp/{token}", methods=["GET", "POST"])
+async def mcp_url(request: Request, token: str):
+    return await _mcp(request, token)
+
+
 @app.get("/conectar")
 def conectar(request: Request):
     u = user(request)
     c = db()
-    d = dict(token=captura.token_de(c, u["id"]),
+    d = dict(token=captura.token_de(c, u["id"]), mcp_token=mcp_token_de(c, u["id"]), mcp_escritura=mcp_server.ESCRITURA,
              revisar=c.execute("SELECT * FROM capturas WHERE estado='por_revisar' ORDER BY id DESC LIMIT 20").fetchall(),
              recientes_c=c.execute("""SELECT k.*, u.nombre FROM capturas k JOIN users u ON u.id=k.user_id
                 WHERE k.estado IN ('creado','por_revisar','ignorado') ORDER BY k.id DESC LIMIT 10""").fetchall(),
              correo_estado=avisos.cfg(c, "correo_estado", ""), usuario=u["username"])
     c.close()
-    base = f"{request.url.scheme}://{request.headers.get('host', '')}"
-    return render(request, "conectar.html", u=u, url=f"{base}/api/captura", buzon=os.environ.get("IMAP_USER", ""),
+    esq = request.headers.get("x-forwarded-proto") or request.url.scheme
+    base = f"{esq}://{request.headers.get('host', '')}"
+    return render(request, "conectar.html", u=u, url=f"{base}/api/captura", mcp_base=base, buzon=os.environ.get("IMAP_USER", ""),
                   imap=correo.configurado(), **d)
 
 

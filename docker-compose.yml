@@ -6,6 +6,8 @@ services:
       HTTPS_ONLY: "1"
       TZ: America/Bogota
       OWN_NAMES: ${OWN_NAMES:-}
+      MCP_ESCRITURA: ${MCP_ESCRITURA:-0}
+      MCP_NOMBRES: ${MCP_NOMBRES:-0}
       VAPID_CONTACT: ${VAPID_CONTACT:-mailto:admin@example.com}
       IMAP_HOST: ${IMAP_HOST:-}
       IMAP_PORT: ${IMAP_PORT:-993}

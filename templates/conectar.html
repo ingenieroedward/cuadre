@@ -9,6 +9,16 @@
 <form method="post" action="/capturas/{{k.id}}/resolver" style="display:flex;gap:6px"><button name="tipo" value="gasto" class="soft">Gasto</button><button name="tipo" value="ingreso" class="soft">Ingreso</button></form>
 <form method="post" action="/capturas/{{k.id}}/descartar"><button class="ghost del" title="Descartar">{{ico('x',17)}}</button></form></div>{% endfor %}</div>{% endif %}
 
+<div class="card" id="mcp"><div class="hd"><h2>{{ico('zap',19)}}Conectar una IA como asesor (MCP)</h2></div>
+<p class="sub">Con este enlace, ChatGPT, Claude u otra IA que soporte «MCP remoto» puede consultar tus finanzas de Cuadre y asesorarte con tus cifras reales. Es <b>solo lectura</b>{% if mcp_escritura %} (el registro de movimientos está activado en este servidor){% endif %}: no puede cambiar ni borrar nada.</p>
+<label class="f">Enlace del servidor MCP<input readonly value="{{mcp_base}}/mcp/{{mcp_token}}" onclick="this.select()" style="font-size:13px"></label>
+<button class="soft" type="button" onclick="navigator.clipboard.writeText('{{mcp_base}}/mcp/{{mcp_token}}');this.textContent='Copiado'">Copiar enlace</button>
+<details class="how" style="margin-top:10px"><summary>{{ico('info',17)}}Cómo agregarlo</summary>
+<div class="steps"><div class="step"><b class="k">1</b><div><b>ChatGPT</b><div class="sub">Ajustes → Conectores (o Aplicaciones) → Avanzado → Modo desarrollador → Crear. Pega el enlace en «URL del servidor MCP» y elige «Sin autenticación». Luego, en un chat, activa el conector.</div></div></div>
+<div class="step"><b class="k">2</b><div><b>Claude</b><div class="sub">Ajustes → Conectores → Agregar conector personalizado. Pega el enlace como URL del servidor remoto y déjalo sin autenticación.</div></div></div>
+<div class="step"><b class="k">3</b><div><b>Otros clientes</b><div class="sub">Si permiten cabeceras, usa la URL <code>{{mcp_base}}/mcp</code> con la cabecera <code>Authorization: Bearer {{mcp_token}}</code>.</div></div></div></div></details>
+<p class="sub" style="margin-top:10px"><b>Trátalo como una clave:</b> quien tenga el enlace puede leer tus finanzas. Lo que la IA consulte se envía a su empresa (OpenAI, Anthropic…). Por privacidad, en las transferencias solo se entrega el primer nombre de la otra persona.</p>
+<form method="post" action="/conectar/mcp/regenerar" onsubmit="return confirm('El enlace anterior dejará de funcionar. ¿Generar uno nuevo?')"><button class="ghost">Generar enlace nuevo (invalida el anterior)</button></form></div>
 <div class="g2">
 <div class="card"><div class="hd"><h2>{{ico('lock',19)}}Tu enlace personal</h2></div>
 <p class="sub" style="margin:-6px 0 10px">Lo usan los atajos del celular para enviar movimientos a tu cuenta. No lo compartas.</p>

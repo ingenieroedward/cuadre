@@ -50,3 +50,9 @@ Cada persona cambia su clave en **Yo → Mi cuenta**. El administrador restablec
 - La clave del PDF (cédula) solo abre el archivo; no se guarda. Tampoco se guarda el PDF.
 - Subir dos veces el mismo extracto no duplica movimientos. Se detecta solo si es cuenta o tarjeta.
 - El lector es genérico más reglas de Nu (cuenta y tarjeta). Para otros bancos, edita `lector.py`.
+
+## Asesor con cualquier IA (MCP)
+Cuadre expone un servidor MCP remoto (Streamable HTTP, solo lectura) en `/mcp/<token>` (o `/mcp` con `Authorization: Bearer <token>`).
+El enlace personal está en **Conectar → Conectar una IA como asesor**. Se puede regenerar para invalidar el anterior.
+Herramientas: `resumen_financiero`, `saldos_cuentas`, `movimientos`, `gastos_por_categoria`, `deudas_y_tarjetas`, `agenda`, `disponible_diario`.
+Variables opcionales: `MCP_ESCRITURA=1` (añade `registrar_movimiento`) y `MCP_NOMBRES=1` (no recortar los nombres de terceros en las transferencias).
