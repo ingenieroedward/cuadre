@@ -19,7 +19,7 @@ INGRESO_CLAVES = ["abono", "consignaci", "rendimiento", "recib", "deposito", "de
                   "nómina", "nomina", "pago recibido", "reembolso", "devoluci", "reversi"]
 
 CATEGORIAS_BASE = {
-    "Suscripciones": ["netflix", "spotify", "disney", "amazon", "youtube", "apple", "hbo", "openai", "anthropic", "paramount"],
+    "Suscripciones": ["netflix", "spotify", "disney", "amazon", "youtube", "apple", "hbo", "openai", "anthropic", "claude", "chatgpt", "paramount"],
     "Educación": ["platzi", "udemy", "coursera", "colegio", "universidad", "matricula", "matrícula"],
     "Compras en línea": ["merpago", "mercadolibre", "mercad olibre", "temu", "shein", "aliexpress"],
     "Supermercado": ["exito", "éxito", " d1 ", " ara ", "jumbo", "olimpica", "olímpica", "carulla", "makro", "canasto", "supertienda"],

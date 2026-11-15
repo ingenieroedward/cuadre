@@ -153,11 +153,12 @@ def procesar(c, user_id, texto, titulo="", banco="", fuente="notificacion", fech
     return {**r, "movimiento_id": mov_id}
 
 
-def conciliar(c, user_id, banco, fecha, monto):
-    """Si hay un movimiento provisional igual (mismo banco, mismo valor, fecha cercana), el extracto lo reemplaza."""
-    r = c.execute("""SELECT id FROM movs WHERE estado='provisional' AND user_id=? AND (banco=? OR banco='Otro') AND ABS(monto-?)<0.5
+def conciliar(c, user_id, banco, fecha, monto, tarjeta=False):
+    """Si hay un movimiento provisional igual (mismo banco, mismo valor, fecha cercana), el extracto lo reemplaza.
+    En el extracto de la tarjeta, las compras anotadas a mano figuran como «Tarjeta Nu»."""
+    r = c.execute("""SELECT id FROM movs WHERE estado='provisional' AND user_id=? AND (banco=? OR banco='Otro' OR banco=?) AND ABS(monto-?)<0.5
         AND ABS(julianday(fecha)-julianday(?))<=5 ORDER BY ABS(julianday(fecha)-julianday(?)) LIMIT 1""",
-                  (user_id, banco, monto, fecha, fecha)).fetchone()
+                  (user_id, banco, f"Tarjeta {banco}" if tarjeta else banco, monto, fecha, fecha)).fetchone()
     if r:
         c.execute("DELETE FROM movs WHERE id=?", (r["id"],))
         return r["id"]

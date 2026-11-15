@@ -11,7 +11,7 @@ import secrets
 import sqlite3
 import time
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
@@ -685,7 +685,7 @@ async def subir(request: Request, bg: BackgroundTasks, archivos: list[UploadFile
                     VALUES(?,?,?,?,?,?,?,?,?,'confirmado','extracto')""", (persona, banco, m["fecha"], m["descripcion"], m["monto"],
                                                    m["categoria"], m["origen"], h, f.filename))
                 nuevos += 1
-                viejo = captura.conciliar(c, persona, banco, m["fecha"], m["monto"])
+                viejo = captura.conciliar(c, persona, banco, m["fecha"], m["monto"], tarjeta=m["origen"] == "tarjeta")
                 if viejo:
                     concil += 1
                     c.execute("UPDATE deuda_pagos SET mov_id=? WHERE mov_id=?", (cur.lastrowid, viejo))
@@ -952,14 +952,17 @@ def registrar_pago_tarjeta(request: Request, pid: int, monto: str = Form(...), c
         c.execute("""INSERT INTO movs(user_id,banco,fecha,descripcion,monto,categoria,origen,hash,estado,fuente)
             VALUES(?,?,?,?,?,?,?,?,?,?)""", (persona or u["id"], banco, dia, f"Pagaste tu tarjeta {t['banco']}", -valor, "Pago de tarjeta",
                                              "manual", hh, "confirmado" if banco == "Efectivo" else "provisional", "manual"))
-    cubierto = valor + 0.5 >= (t["pago_minimo"] or 0)
+    total = abonado_tarjeta(c, t) + (0 if (anotar and cuenta) else valor)   # lo abonado en el ciclo, contando este pago
+    cubierto = total + 0.5 >= (t["pago_minimo"] or 0)
     if cubierto:
         c.execute("UPDATE pagos_tarjeta SET pagado=1 WHERE id=?", (pid,))
     c.commit(); c.close()
-    resto = (t["a_pagar"] or 0) - valor
-    msg = f"Pago de {avisos.cop(valor)} registrado" + (" y la tarjeta quedó al día" if cubierto else ". Aún no llega al pago mínimo")
-    if cubierto and resto > 0.5:
-        msg += f". Si no pagas {avisos.cop(resto)} más antes del límite, se cobran intereses"
+    resto = (t["a_pagar"] or 0) - total
+    msg = f"Pago de {avisos.cop(valor)} registrado"
+    if cubierto:
+        msg += " y la tarjeta quedó al día" + (f". Para no pagar intereses faltan {avisos.cop(resto)} antes del límite" if resto > 0.5 else "")
+    else:
+        msg += f". Llevas {avisos.cop(total)} abonados; faltan {avisos.cop((t['pago_minimo'] or 0) - total)} para el pago mínimo y {avisos.cop(resto)} para no pagar intereses"
     return volver(request, destino, msg=msg)
 
 
@@ -1414,6 +1417,14 @@ def cargar_deudas(c):
     return out
 
 
+def abonado_tarjeta(c, t):
+    """Lo ya abonado a mano a esa tarjeta en este ciclo (después del corte, o los 30 días anteriores al límite)."""
+    desde = (t["corte"] if "corte" in t.keys() and t["corte"] else (date.fromisoformat(t["fecha_limite"]) - timedelta(days=30)).isoformat())
+    r = c.execute("""SELECT COALESCE(SUM(-monto),0) v FROM movs WHERE user_id=? AND categoria='Pago de tarjeta' AND fuente='manual'
+        AND descripcion LIKE ? AND fecha>=?""", (t["user_id"], f"Pagaste tu tarjeta {t['banco']}%", desde)).fetchone()
+    return r["v"]
+
+
 def cargar_tarjetas(c, todas):
     """Una línea por tarjeta (el último extracto) con sus compras a cuotas."""
     out = []
@@ -1424,7 +1435,9 @@ def cargar_tarjetas(c, todas):
                   and not x["e"]["pagada"]]
         dias = (date.fromisoformat(t["fecha_limite"]) - date.today()).days
         uso = (t["usado"] / t["cupo"]) if t["cupo"] and t["usado"] is not None else None
-        out.append({"t": t, "cuotas": cuotas, "dias": dias, "uso": uso, "manejo": cuentas.manejo_tarjeta(c, t["user_id"], t["banco"]),
+        abon = abonado_tarjeta(c, t)
+        out.append({"t": t, "abonado": abon, "falta_min": max((t["pago_minimo"] or 0) - abon, 0), "falta_tot": max((t["a_pagar"] or 0) - abon, 0),
+                    "cuotas": cuotas, "dias": dias, "uso": uso, "manejo": cuentas.manejo_tarjeta(c, t["user_id"], t["banco"]),
                     "ficha": cuentas.ficha_tarjeta(c, t["user_id"], t["banco"]), "ciclo": cuentas.ciclo_tarjeta(c, t["user_id"], t["banco"])})
     return out
 
